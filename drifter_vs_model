@@ -1,0 +1,77 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Oct 13 11:38:36 2015
+get and compare the drifter and model data
+@author: Qianran
+"""
+import sys
+from datetime import datetime, timedelta
+import matplotlib.pyplot as plt
+import numpy as np
+from drifter_vs_model_function import get_driftertrack,get_fvcom,get_roms,cpdrtime,haversine
+######## Hard codes ##########
+Model=['GOM3','massbay']
+GRIDS= ['GOM3','massbay','30yr']
+#model_name = "GOM3"#GOM3   massbay   30yr    ROMS
+track_days = 2 
+drifter_ID = '1504107017' #'158420703'   
+INPUT_DATA = 'drift_X.dat'
+depth = 1 
+start_time = datetime.utcnow()-timedelta(track_days)#datetime(2015,1,24,0,0,0,0,pytz.UTC)
+######## Drifter and model track ##########
+dis=[]
+avedis=[]
+for i in Model:
+    drifter_points = dict(lon=[],lat=[],time=[])
+    model_points = dict(lon=[],lat=[],time=[])
+    
+    dr_points = get_driftertrack(start_time,track_days,drifter_ID)
+    drifter_points['lon'].extend(dr_points['lon']); drifter_points['lat'].extend(dr_points['lat']);drifter_points['time'].extend(dr_points['time'])
+    #print "drifter points: ",len(dr_points['lon']),'\nfirst point(',dr_points['lat'][1],',',dr_points['lon'][1],')'
+    #print drifter_points
+
+    start_time=dr_points['time'][0]
+    end_time=dr_points['time'][-1]
+    if i in GRIDS:
+        get_obj =  get_fvcom(i)
+        url_fvcom = get_obj.get_url(start_time,end_time)
+        b_points = get_obj.get_data(url_fvcom) # b_points is model boundary points.
+        point,num = get_obj.get_track(dr_points['lon'][0],dr_points['lat'][0],depth)
+        #print point['time']
+    if i=='ROMS':        
+        get_obj = get_roms()
+        url_roms = get_obj.get_url(start_time,end_time)
+        get_obj.get_data(url_roms)
+        point = get_obj.get_track(dr_points['lon'][-1],dr_points['lat'][-1],depth)#,DEPTH
+        if len(point['lon'])==1:
+            print 'Start point on the land or out of Model area.'
+            sys.exit('Invalid point')
+    #print "model points: ",len(point['lon'])
+
+    model_points['lon'],model_points['lat'],model_points['time']=cpdrtime(dr_points['time'],point['lon'],point['lat'],point['time'])
+    #print  model_points  
+    #print len(model_points['lon']),len(drifter_points['lon'])
+    dd=[]
+    for a in range(len(model_points['lon'])):
+        d=haversine(model_points['lon'][a],model_points['lat'][a],drifter_points['lon'][a],drifter_points['lat'][a])
+        dd.append(d)
+    
+    dis.append(dd)
+    #print dis
+    avedis=sum(dd)/len(dd)
+    print avedis
+#########plot######
+    plt.title('drifter track and %s model track' %i)
+    plt.plot(drifter_points['lon'],drifter_points['lat'],'bo-')
+    plt.plot(point['lon'],point['lat'],'ro-')
+    plt.legend(['drifter track','%s model track' %i] ,2)
+    plt.grid(True)
+    plt.show()
+#print dis[0],dis[1]
+plt.title('distance between drifter and %s model' %i)
+plt.xlabel('time')
+#plt.xticks((np.arange(len(dr_points['time']))),(dr_points['time']))
+plt.ylabel('distance')
+plt.plot(dis[0],'bo-',dis[1],'cx-')
+plt.legend(['%s SD' %Model[0],'%s SD' %Model[1]])
+plt.show()
