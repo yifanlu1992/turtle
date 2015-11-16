@@ -14,7 +14,7 @@ Model=['GOM3','massbay']
 GRIDS= ['GOM3','massbay','30yr']
 #model_name = "GOM3"#GOM3   massbay   30yr    ROMS
 track_days = 1 
-drifter_ID = '1504107023'#'158420703'#'150410705'#'150410706' #'158420703'   
+drifter_ID = '1504107017'#'158420703'#'150410705'#'150410706' #'158420703'   
 INPUT_DATA = 'drift_X.dat'
 depth = 1 
 days=3
@@ -33,7 +33,7 @@ for i in Model:
     #print drifter_points['time']
     for m in np.arange(0,days,1):  
         modelpoints = dict(lon=[],lat=[],time=[])
-        starttime=[];end_time=[]
+        starttime=[];end_time=[];outtimes=[]
         starttime=dr_points['time'][0]+timedelta(m)
         end_time=starttime+timedelta(hours=24)
         #print starttime,end_time
@@ -57,6 +57,9 @@ for i in Model:
                 #print "model points: ",len(point['lon'])
         #print len(point['lon']),len(dr_points['time'])
         dtimenp = np.array(dr_points['time'])
+        for t in range(len(drifter_points['time'])):
+            outtime = datetime.strftime(dr_points['time'][t],'%H')
+            outtimes.append(outtime)
         dst = dtimenp-starttime; dstindex = np.argmin(abs(dst))
         det = dtimenp-end_time; detindex = np.argmin(abs(det))
         dmlon.append(dr_points['lon'][dstindex:detindex+1])
@@ -91,20 +94,19 @@ for i in Model:
     plt.plot(drifter_points['lon'],drifter_points['lat'],'bo-')
     for a in range(days):
         plt.plot(model_points['lon'][a],model_points['lat'][a],'ro-')
-    plt.legend(['drifter track','%s model track' %i] ,2)
+    plt.legend(['drifter track','%s model track' %i] ,1)
     plt.grid(True)
     plt.show()
 #print dis[0],dis[1]
     plt.title('different day SD')
     plt.xlabel('per hours')
-    plt.xticks((range(dr_point)),(dtimenp))
+    plt.xticks((range(dr_point)),(outtimes))
     plt.ylabel('distance')
     for a in range(days):
         plt.plot(dis[a],label='%s model the %i day SD' % (i,a+1) )
         plt.legend()
-    plt.show()
+    plt.show()#different day drifter data maybe hiatus in different time
 #plt.title('distance between drifter and %s model' %i)
 #plt.xlabel('per hours')
 #plt.xticks((np.arange(len(dr_points['time']))),(dr_points['time']))
-#plt.ylabel('distance')
-   
+#plt.ylabel('distance')'''
