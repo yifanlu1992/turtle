@@ -304,7 +304,7 @@ class get_fvcom():
         lonl=np.array(lont); latl=np.array(latt)#'''
         if not lont:
             print 'point position error! shrink_data'
-            sys.exit()
+            #sys.exit()
         return lonl,latl
     
     def boundary_path(self,lon,lat):
@@ -453,7 +453,7 @@ class get_fvcom():
                 print 'This point is too shallow.Less than %d meter.'%abs(depth)
                 raise Exception()
         except:
-            return modpts,0  
+            return modpts
             
         t = abs(self.hours)         
         for i in xrange(t):            
@@ -483,7 +483,7 @@ class get_fvcom():
                 tempa = Path(teml)
                 if pa.intersects_path(tempa): 
                     print 'Sorry, point hits land here.path'
-                    return modpts,1 #'''
+                    return modpts#'''
                 
 
             lon = temlon; lat = temlat
@@ -517,9 +517,9 @@ class get_fvcom():
                     print 'This point hits the land here.Less than %d meter.'%abs(depth)
                     raise Exception()
             except:
-                return modpts,1
+                return modpts
                                 
-        return modpts,2
+        return modpts
 class get_roms():
     '''
     ####(2009.10.11, 2013.05.19):version1(old) 2009-2013
@@ -612,7 +612,7 @@ class get_roms():
         lonl=np.array(lont); latl=np.array(latt)#'''
         if not lont:
             print 'point position error! shrink_data'
-            sys.exit()
+            #sys.exit()
         return lonl,latl
         
     def get_data(self, url):
@@ -717,7 +717,14 @@ class get_roms():
                 return nodes
             
         return nodes      
-        
+def mostpoint(time,starttime,drlon,drlat):
+    '''get the model everyday start point '''   
+    ti=time-starttime
+    index =np.argmin(abs(ti)) 
+    stlon=drlon[index]
+    stlat=drlat[index]
+    return stlon,stlat
+    
 def cpdrtime(drtime,pointlon,pointlat,pointtime):
     '''compare to the drifter time get the model same time data'''
     npmotime=[]
@@ -747,7 +754,6 @@ def haversine(lon1, lat1, lon2, lat2):
     on the earth (specified in decimal degrees) 
     """   
     lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])  
-  
     dlon = lon2 - lon1   
     dlat = lat2 - lat1   
     a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2  
