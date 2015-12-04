@@ -5,6 +5,7 @@ the function about how to get and compare the drifter and model data
 @author: qianran
 """
 import sys
+import datetime as dt
 from matplotlib.path import Path
 import netCDF4
 from dateutil.parser import parse
@@ -246,6 +247,7 @@ class get_fvcom():
             mstt = fmodtime.strftime('%m/%d/%Y %H:%M')
             mett = emodtime.strftime('%m/%d/%Y %H:%M') #'''
             # get number of days from 11/17/1858
+            #print starttime
             t1 = (starttime - datetime(1858,11,17)).total_seconds()/86400 
             t2 = (endtime - datetime(1858,11,17)).total_seconds()/86400
             if not mtime[0]<t1<mtime[-1] or not mtime[0]<t2<mtime[-1]:
@@ -254,12 +256,14 @@ class get_fvcom():
                 raise Exception()
             
             tm1 = mtime-t1; #tm2 = mtime-t2
+            #print mtime,tm1
             index1 = np.argmin(abs(tm1)); #index2 = np.argmin(abs(tm2)); print index1,index2
             index2 = index1 + self.hours
             url = url.format(index1, index2)
             Times = []
             for i in range(self.hours+1):
-                Times.append(starttime+timedelta(i))
+                Times.append(starttime+timedelta(hours=i))
+            #print Times
             self.mTime = Times
             self.url = url
         #print url
@@ -421,14 +425,15 @@ class get_fvcom():
         #uvz = netCDF4.Dataset(self.url)
         #u = uvz.variables['u']; v = uvz.variables['v']; zeta = uvz.variables['zeta']
         #print 'len u',len(u)
+        #print modpts['lon']
         if lon>90:
             lon, lat = dm2dd(lon, lat)
         lonl,latl = self.shrink_data(lon,lat,self.lonc,self.latc,0.5)#1 day elements(blue)
         lonk,latk = self.shrink_data(lon,lat,self.lons,self.lats,0.5)#1 day nodes(red)
         try:
             if self.modelname == "GOM3" or self.modelname == "30yr":
-                lonp,latp = self.nearest_point(lon, lat, lonl, latl,0.2)#elements(blue)
-                lonn,latn = self.nearest_point(lon,lat,lonk,latk,0.3)#nodes(red)
+                lonp,latp = self.nearest_point(lon, lat, lonl, latl,0.4)#elements(blue)
+                lonn,latn = self.nearest_point(lon,lat,lonk,latk,0.6)#nodes(red)
             if self.modelname == "massbay":
                 lonp,latp = self.nearest_point(lon, lat, lonl, latl,0.03)
                 lonn,latn = self.nearest_point(lon,lat,lonk,latk,0.05)        
@@ -490,8 +495,8 @@ class get_fvcom():
             #if i!=(t-1):                
             try:
                 if self.modelname == "GOM3" or self.modelname == "30yr":
-                    lonp,latp = self.nearest_point(lon, lat, lonl, latl,0.2)
-                    lonn,latn = self.nearest_point(lon,lat,lonk,latk,0.3)
+                    lonp,latp = self.nearest_point(lon, lat, lonl, latl,0.4)
+                    lonn,latn = self.nearest_point(lon,lat,lonk,latk,0.6)
                 if self.modelname == "massbay":
                     lonp,latp = self.nearest_point(lon, lat, lonl, latl,0.03)
                     lonn,latn = self.nearest_point(lon,lat,lonk,latk,0.05)
@@ -564,38 +569,71 @@ class get_roms():
         get url according to starttime and endtime.
         '''
         starttime = starttime
+        cptime=datetime(2013,05,18)
         self.hours = int((endtime-starttime).total_seconds()/60/60) # get total hours
         # time_r = datetime(year=2006,month=1,day=9,hour=1,minute=0)
-        
-        url_oceantime = '''http://tds.marine.rutgers.edu:8080/thredds/dodsC/roms/espresso/2013_da/his/ESPRESSO_Real-Time_v2_History_Best?time'''
-        url = """http://tds.marine.rutgers.edu:8080/thredds/dodsC/roms/espresso/2013_da/his/ESPRESSO_Real-Time_v2_History_Best?h[0:1:81][0:1:129],
-        mask_rho[0:1:81][0:1:128],mask_u[0:1:81][0:1:128],mask_v[0:1:80][0:1:129],zeta[{0}:1:{1}][0:1:81][0:1:129],u[{0}:1:{1}][0:1:35][0:1:81][0:1:128],
-        v[{0}:1:{1}][0:1:35][0:1:80][0:1:129],s_rho[0:1:35],lon_rho[0:1:81][0:1:129],lat_rho[0:1:81][0:1:129],lon_u[0:1:81][0:1:128],lat_u[0:1:81][0:1:128],
-        lon_v[0:1:80][0:1:129],lat_v[0:1:80][0:1:129],time[0:1:19523]"""
-        try:
-            oceantime = netCDF4.Dataset(url_oceantime).variables['time'][:]
-        except:
-            print 'ROMS database is unavailable!'
-            raise Exception()
-        # get model works time horizon(UTC).
-        fmodtime = datetime(2013,05,18) + timedelta(hours=float(oceantime[0]))
-        emodtime = datetime(2013,05,18) + timedelta(hours=float(oceantime[-1]))
-        mstt = fmodtime.strftime('%m/%d/%Y %H:%M') #model start time
-        mett = emodtime.strftime('%m/%d/%Y %H:%M') #model end time
-        # get number of hour from 05/18/2013
-        t1 = (starttime - datetime(2013,05,18)).total_seconds()/3600 
-        t2 = (endtime - datetime(2013,05,18)).total_seconds()/3600
-        #t1 = int(round(t1)); t2 = int(round(t2))
-        # judge if the starttime and endtime in the model time horizon
-        print starttime, endtime
-        if starttime<fmodtime or starttime>emodtime or endtime<fmodtime or endtime>emodtime:
-            print 'Time: Error! Model(ROMS) only works between %s with %s.'%(mstt,mett)
-            raise Exception()
+        if starttime>cptime:
+            url_oceantime = '''http://tds.marine.rutgers.edu:8080/thredds/dodsC/roms/espresso/2013_da/his/ESPRESSO_Real-Time_v2_History_Best?time'''
+            url = """http://tds.marine.rutgers.edu:8080/thredds/dodsC/roms/espresso/2013_da/his/ESPRESSO_Real-Time_v2_History_Best?h[0:1:81][0:1:129],
+            mask_rho[0:1:81][0:1:128],mask_u[0:1:81][0:1:128],mask_v[0:1:80][0:1:129],zeta[{0}:1:{1}][0:1:81][0:1:129],u[{0}:1:{1}][0:1:35][0:1:81][0:1:128],
+            v[{0}:1:{1}][0:1:35][0:1:80][0:1:129],s_rho[0:1:35],lon_rho[0:1:81][0:1:129],lat_rho[0:1:81][0:1:129],lon_u[0:1:81][0:1:128],lat_u[0:1:81][0:1:128],
+            lon_v[0:1:80][0:1:129],lat_v[0:1:80][0:1:129],time[0:1:19523]"""
+            try:
+                oceantime = netCDF4.Dataset(url_oceantime).variables['time'][:]
+            except:
+                print 'ROMS database is unavailable!'
+                raise Exception()
+            # get model works time horizon(UTC).
+            fmodtime = datetime(2013,05,18) + timedelta(hours=float(oceantime[0]))
+            emodtime = datetime(2013,05,18) + timedelta(hours=float(oceantime[-1]))
+            mstt = fmodtime.strftime('%m/%d/%Y %H:%M') #model start time
+            mett = emodtime.strftime('%m/%d/%Y %H:%M') #model end time
+            # get number of hour from 05/18/2013
+            t1 = (starttime - datetime(2013,05,18)).total_seconds()/3600 
+            t2 = (endtime - datetime(2013,05,18)).total_seconds()/3600
+            #t1 = int(round(t1)); t2 = int(round(t2))
+            # judge if the starttime and endtime in the model time horizon
+            #print 'starttime, endtime,fmodtime,emodtime',starttime, endtime,fmodtime,emodtime
+            if starttime<fmodtime or starttime>emodtime or endtime<fmodtime or endtime>emodtime:
+                print 'Time: Error! Model(ROMS) only works between %s with %s.'%(mstt,mett)
+                raise Exception()
+        else:
+            url_oceantime = '''http://tds.marine.rutgers.edu:8080/thredds/dodsC/roms/espresso/2009_da/his?ocean_time[0:1:19145]'''
+            url = """http://tds.marine.rutgers.edu:8080/thredds/dodsC/roms/espresso/2009_da/his?s_rho[0:1:35],
+            h[0:1:81][0:1:129],lon_rho[0:1:81][0:1:129],lat_rho[0:1:81][0:1:129],lon_u[0:1:81][0:1:128],
+            lat_u[0:1:81][0:1:128],lon_v[0:1:80][0:1:129],lat_v[0:1:80][0:1:129],mask_rho[0:1:81][0:1:129],
+            mask_u[0:1:81][0:1:128],mask_v[0:1:80][0:1:129],ocean_time[0:1:19145],zeta[0:1:19145][0:1:81][0:1:129],
+            u[0:1:19145][0:1:35][0:1:81][0:1:128],v[0:1:19145][0:1:35][0:1:80][0:1:129]"""
+            
+            try:
+                oceantime = netCDF4.Dataset(url_oceantime).variables['ocean_time'][:]
+                #print 'a',oceantime[0]
+            except:
+                print 'ROMS database is unavailable!'
+                raise Exception()
+            # get model works time horizon(UTC).
+            fmodtime = datetime(2006,01,01) + timedelta(seconds=float(oceantime[0]))
+            emodtime = datetime(2006,01,01) + timedelta(seconds=float(oceantime[-1]))
+            mstt = fmodtime.strftime('%m/%d/%Y %H:%M') #model start time
+            mett = emodtime.strftime('%m/%d/%Y %H:%M') #model end time
+    
+            t1 = (starttime - datetime(2006,01,01)).total_seconds() 
+            t2 = (endtime - datetime(2006,01,01)).total_seconds()
+            #t1 = int(round(t1)); t2 = int(round(t2))
+            # judge if the starttime and endtime in the model time horizon
+            #print 'starttime, endtime,fmodtime,emodtime',starttime, endtime,fmodtime,emodtime
+            if starttime<fmodtime or starttime>emodtime or endtime<fmodtime or endtime>emodtime:
+                print 'Time: Error! Model(ROMS) only works between %s with %s.'%(mstt,mett)
+                raise Exception()
         #index1 = np.where(oceantime==t1)[0][0]; #print index1
         #index2 = np.where(oceantime==t2)[0][0]; #print index2
         int1 = oceantime - t1; int2 = oceantime - t2
         index1 = np.argmin(abs(int1)); index2 = np.argmin(abs(int2))
         url = url.format(index1, index2)
+        Times = []
+        for i in range(self.hours+1):
+            Times.append(starttime+timedelta(hours=i))
+        self.mTime = Times; #print Times
         self.url=url
         
         return url
@@ -639,7 +677,7 @@ class get_roms():
         lonrho,latrho = self.shrink_data(lon,lat,self.lon_rho,self.lat_rho)
         lonu,latu = self.shrink_data(lon,lat,self.lon_u,self.lat_u)
         lonv,latv = self.shrink_data(lon,lat,self.lon_v,self.lat_v)
-        nodes = dict(lon=[lon], lat=[lat])
+        nodes = dict(lon=[lon], lat=[lat],time=[])
 
         try:
             lonrp,latrp = self.nearest_point(lon,lat,lonrho,latrho)
@@ -657,6 +695,7 @@ class get_roms():
                 raise Exception()
                 
             waterdepth = self.h[indexr]+self.zeta[0][indexr][0]
+            nodes['time'].append(self.mTime[0])
             if waterdepth<(abs(depth)): 
                 print 'This point is too shallow.Less than %d meter.'%abs(depth)
                 raise Exception()
@@ -685,7 +724,7 @@ class get_roms():
             #lon,lat = mapx(x+dx,y+dy,inverse=True)            
             lon = lon + dx/(111111*np.cos(lat*np.pi/180))
             lat = lat + dy/111111
-            print '%d,lat,lon,layer'%(i+1),lat,lon,layer
+            #print '%d,lat,lon,layer'%(i+1),lat,lon,layer
             nodes['lon'].append(lon);nodes['lat'].append(lat)
             try:
                 lonrp,latrp = self.nearest_point(lon,lat,lonrho,latrho)
@@ -706,7 +745,7 @@ class get_roms():
                 
                 
                 waterdepth = self.h[indexr]+self.zeta[(i+1)][indexr][0]
-                    
+                nodes['time'].append(self.mTime[i+1])    
                 if waterdepth<(abs(depth)): 
                     print 'This point is too shallow.Less than %d meter.'%abs(depth)
                     raise Exception()
@@ -718,8 +757,11 @@ class get_roms():
             
         return nodes      
 def mostpoint(time,starttime,drlon,drlat):
-    '''get the model everyday start point '''   
-    ti=time-starttime
+    '''get the model everyday start point '''
+    #print type(time),time
+    nptime=np.array(time)
+    #print nptime,starttime
+    ti=nptime-starttime        
     index =np.argmin(abs(ti)) 
     stlon=drlon[index]
     stlat=drlat[index]
@@ -733,19 +775,22 @@ def cpdrtime(drtime,pointlon,pointlat,pointtime):
     npmodellon=[]
     npmodellat=[]
     npmodeltime=[]
-    npdrtimes = drtime
+    npdrtimes = np.array(drtime)
     npmolons = np.array(pointlon)
     npmolats = np.array(pointlat)
     npmotimes = np.array(pointtime)
+    #print npdrtimes,npmotimes
     for i in npdrtimes:
         md=npmotimes-i
         index = np.argmin(abs(md))
+        #print md
         npmotime=npmotimes[index]
         npmolon=npmolons[index]    
         npmolat=npmolats[index]
         npmodellon.append(npmolon)
         npmodellat.append(npmolat)
         npmodeltime.append(npmotime)#model right data
+    #print npmodellon,npmodellat,npmodeltime
     return  npmodellon,npmodellat,npmodeltime
     
 def haversine(lon1, lat1, lon2, lat2): 
@@ -754,9 +799,58 @@ def haversine(lon1, lat1, lon2, lat2):
     on the earth (specified in decimal degrees) 
     """   
     lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])  
+  
     dlon = lon2 - lon1   
     dlat = lat2 - lat1   
     a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2  
     c = 2 * asin(sqrt(a))   
     r = 6371 
     return c * r * 1000  
+    
+def oracle_get_drifter(id,start_time,days):
+    """
+     get data from url, return ids latitude,longitude, times
+     input_time can either contain two values: start_time & end_time OR one value:interval_days
+     and they should be timezone aware
+     example: input_time=[dt(2012,1,1,0,0,0,0,pytz.UTC),dt(2012,2,1,0,0,0,0,pytz.UTC)]
+     """
+    df=dict(id=[],lon=[],lat=[],time=[])
+    mintime=start_time.strftime('%Y-%m-%d'+'T'+'%H:%M:%S'+'Z')  # change time format
+    endtime=start_time+timedelta(days)    
+    maxtime=endtime.strftime('%Y-%m-%d'+'T'+'%H:%M:%S'+'Z')    
+    # open url to get data
+    url='http://comet.nefsc.noaa.gov:8080/erddap/tabledap/drifters.csv?id,time,latitude,longitude&time>='\
+    +str(mintime)+'&time<='+str(maxtime)+'&id="'+str(id)+'"&orderBy("time")'
+    df=pd.read_csv(url,skiprows=[1])
+    for k in range(len(df)):
+        #print df.time[k]
+        df.time[k]=parse(df.time[k][:-1])
+    df=df[df.longitude <=-20]
+    return df.time.values,df.latitude.values,df.longitude.values
+    
+
+def drifter_csv(start_time,drifter_ID,days):
+    dt_starttime = datetime.strptime(start_time, "%Y-%m-%d")
+    nodes=dict(lon=[],lat=[],time=[])
+    FN='ID_%s.csv' %drifter_ID 
+    D = np.genfromtxt(FN,dtype=None,names=['ID','TimeRD','TIME_GMT','YRDAY0_GMT','LON_DD','LAT_DD','TEMP','DEPTH_I'],delimiter=',')    
+
+    nodes['lon'] = D['LON_DD']
+    nodes['lat'] =  D['LAT_DD']
+    for i in range(len(D['YRDAY0_GMT'])):
+        a=[]
+        a=dt.datetime(2010,01,01,0,0,0,0)+timedelta(D['YRDAY0_GMT'][i])
+        nodes['time'].append(a)
+    #print nodes['time']
+        #starttime = np.array(temp[2][0])
+    if days:
+        #print start_time
+        endtime = dt_starttime+timedelta(days)
+        i = __cmptime(dt_starttime, nodes['time'])
+        j = __cmptime(endtime, nodes['time'])
+        nodes['lon'] = nodes['lon'][i:j+1]
+        nodes['lat'] = nodes['lat'][i:j+1]
+        nodes['time'] = nodes['time'][i:j+1]
+    else:
+        print 'I need the days'
+    return nodes
