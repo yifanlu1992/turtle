@@ -13,14 +13,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 from drifter_vs_model_function import get_driftertrack,get_fvcom,get_roms,cpdrtime,haversine,mostpoint,drifter_csv,oracle_get_drifter
 ######## Hard codes ##########
-method_of_drifter='oracle'#'internet''csv','oracle'   the method of get drifter data
+method_of_drifter='oracle'#'raw''csv','oracle'   the method of get drifter data
 Model=['30yr','ROMS']#'GOM3','massbay','30yr','ROMS'# model want to be compair with drifter track
-GRIDS= ['GOM3','massbay','30yr']#those three model can use one function
-drifter_ID = '100380631'#'1504107023''158420703''150410705''150410706'  
-id=['126390731']#oracle
-INPUT_DATA = 'drift_X.dat'
+GRIDS= ['GOM3','massbay','30yr']#those three model can use one function to get model data
+drifter_ID = '100380631'#'1504107023''158420703''150410705''150410706'  #raw or csv drifter id
+id=['126390731']#oracle drifter id
+INPUT_DATA = 'drift_X.dat'#raw get drifter data need this
 depth = 1 
-days=3  #day we want to compaire
+days=3  #days want to compaire
 start_time = start_time =dt.datetime(2012,06,02,0,0,0,0)#datetime.utcnow()-timedelta(days)#
 #input_time=[dt.datetime(2012,6,2,0,0,0,0,pytz.UTC),dt.datetime(2012,6,4,0,0,0,0,pytz.UTC)] #oracle# start time and end time
 
@@ -34,14 +34,17 @@ for q in range(len(id)):
         time=[]
         model_points =dict(lon=[],lat=[],time=[])
         dmlon = []; dmlat = []    
-        if method_of_drifter=='internet':
+        if method_of_drifter=='raw':
+            ids=drifter_ID
             dr_points = get_driftertrack(start_time,days,drifter_ID)
             drifter_points['time'].extend(dr_points['time'])
         if method_of_drifter=='csv':
+            ids=drifter_ID
             starttime=start_time.strftime("%Y-%m-%d")
             dr_points = drifter_csv(starttime,drifter_ID,days)
             drifter_points['time'].extend(dr_points['time'])
         if method_of_drifter=='oracle':
+            ids=id
             dr_points['time'],dr_points['lat'],dr_points['lon'] = oracle_get_drifter(id[q],start_time,days)
             for w in range(len(dr_points['time'])):       
                 times=[]       
@@ -122,7 +125,7 @@ for q in range(len(id)):
            
     #########plot######
         plt.figure(1) 
-        plt.title('drifter track and %s model track' %i)
+        plt.title('drifter track and %s model track'%i)
         plt.plot(drifter_points['lon'],drifter_points['lat'],'bo-')
         for a in range(days):
             plt.plot(model_points['lon'][a],model_points['lat'][a],'ro-')
@@ -131,7 +134,7 @@ for q in range(len(id)):
         plt.show()
     #print dis[0],dis[1]
         plt.figure(2) 
-        plt.title('different day SD')
+        plt.title('drifter %s different day SD'%ids)
         plt.xlabel('hours')
         plt.xticks((range(len(dis[1]))),(outtimes))
         plt.ylabel('distance')
