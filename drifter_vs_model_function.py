@@ -60,7 +60,30 @@ def __cmptime(time, times):
     index = tdelta.index(min(tdelta))
     
     return index
-def get_driftertrack(starttime, days,drifterID):
+def get_drifter_track(method_of_drifter,start_time, days,drifter_ID,id):
+    dr_points=dict(lon=[],lat=[],time=[]) 
+    drifter_points = dict(lon=[],lat=[],time=[])
+    if method_of_drifter=='raw':
+        ids=drifter_ID
+        dr_points = get_drifter_raw(start_time,days,drifter_ID)
+        drifter_points['time'].extend(dr_points['time'])
+    if method_of_drifter=='csv':
+        ids=drifter_ID
+        starttime=start_time.strftime("%Y-%m-%d")
+        dr_points = get_drifter_csv(starttime,drifter_ID,days)
+        drifter_points['time'].extend(dr_points['time'])
+    if method_of_drifter=='oracle':
+        ids=id
+        dr_points['time'],dr_points['lat'],dr_points['lon'] = get_drifter_oracle(id,start_time,days)
+        for w in range(len(dr_points['time'])):       
+            times=[]       
+            times=dr_points['time'][w].replace(tzinfo=None)
+            #print times
+            drifter_points['time'].append(times)  
+            #print drifter_points['time']
+        dr_points['lon'].tolist;dr_points['lat'].tolist
+    return dr_points,ids,drifter_points['time']
+def get_drifter_raw(starttime, days,drifterID):
     '''
         return drifter nodes
         if starttime is given, return nodes started from starttime
@@ -90,6 +113,53 @@ def get_driftertrack(starttime, days,drifterID):
         nodes['lon'] = nodes['lon'][i:-1]
         nodes['lat'] = nodes['lat'][i:-1]
         nodes['time'] = nodes['time'][i:-1]
+    return nodes
+def get_drifter_oracle(id,start_time,days):
+    """
+     get data from url, return ids latitude,longitude, times
+     input_time can either contain two values: start_time & end_time OR one value:interval_days
+     and they should be timezone aware
+     example: input_time=[dt(2012,1,1,0,0,0,0,pytz.UTC),dt(2012,2,1,0,0,0,0,pytz.UTC)]
+     """
+    df=dict(id=[],lon=[],lat=[],time=[])
+    mintime=start_time.strftime('%Y-%m-%d'+'T'+'%H:%M:%S'+'Z')  # change time format
+    endtime=start_time+timedelta(days)    
+    maxtime=endtime.strftime('%Y-%m-%d'+'T'+'%H:%M:%S'+'Z')    
+    # open url to get data
+    url='http://comet.nefsc.noaa.gov:8080/erddap/tabledap/drifters.csv?id,time,latitude,longitude&time>='\
+    +str(mintime)+'&time<='+str(maxtime)+'&id="'+str(id)+'"&orderBy("time")'
+    df=pd.read_csv(url,skiprows=[1])
+    for k in range(len(df)):
+        #print df.time[k]
+        df.time[k]=parse(df.time[k][:-1])
+    df=df[df.longitude <=-20]
+    return df.time.values,df.latitude.values,df.longitude.values
+    
+
+def get_drifter_csv(start_time,drifter_ID,days):
+    dt_starttime = datetime.strptime(start_time, "%Y-%m-%d")
+    nodes=dict(lon=[],lat=[],time=[])
+    FN='ID_%s.csv' %drifter_ID 
+    D = np.genfromtxt(FN,dtype=None,names=['ID','TimeRD','TIME_GMT','YRDAY0_GMT','LON_DD','LAT_DD','TEMP','DEPTH_I'],delimiter=',')    
+
+    nodes['lon'] = D['LON_DD']
+    nodes['lat'] =  D['LAT_DD']
+    for i in range(len(D['YRDAY0_GMT'])):
+        a=[]
+        a=dt.datetime(2010,01,01,0,0,0,0)+timedelta(D['YRDAY0_GMT'][i])
+        nodes['time'].append(a)
+    #print nodes['time']
+        #starttime = np.array(temp[2][0])
+    if days:
+        #print start_time
+        endtime = dt_starttime+timedelta(days)
+        i = __cmptime(dt_starttime, nodes['time'])
+        j = __cmptime(endtime, nodes['time'])
+        nodes['lon'] = nodes['lon'][i:j+1]
+        nodes['lat'] = nodes['lat'][i:j+1]
+        nodes['time'] = nodes['time'][i:j+1]
+    else:
+        print 'I need the days'
     return nodes
 #######################model track###
 def dm2dd(lat,lon):
@@ -756,7 +826,7 @@ class get_roms():
                 return nodes
             
         return nodes      
-def mostpoint(time,starttime,drlon,drlat):
+def model_start_point(time,starttime,drlon,drlat):
     '''get the model everyday start point '''
     #print type(time),time
     nptime=np.array(time)
@@ -806,51 +876,65 @@ def haversine(lon1, lat1, lon2, lat2):
     c = 2 * asin(sqrt(a))   
     r = 6371 
     return c * r * 1000  
-    
-def oracle_get_drifter(id,start_time,days):
-    """
-     get data from url, return ids latitude,longitude, times
-     input_time can either contain two values: start_time & end_time OR one value:interval_days
-     and they should be timezone aware
-     example: input_time=[dt(2012,1,1,0,0,0,0,pytz.UTC),dt(2012,2,1,0,0,0,0,pytz.UTC)]
-     """
-    df=dict(id=[],lon=[],lat=[],time=[])
-    mintime=start_time.strftime('%Y-%m-%d'+'T'+'%H:%M:%S'+'Z')  # change time format
-    endtime=start_time+timedelta(days)    
-    maxtime=endtime.strftime('%Y-%m-%d'+'T'+'%H:%M:%S'+'Z')    
-    # open url to get data
-    url='http://comet.nefsc.noaa.gov:8080/erddap/tabledap/drifters.csv?id,time,latitude,longitude&time>='\
-    +str(mintime)+'&time<='+str(maxtime)+'&id="'+str(id)+'"&orderBy("time")'
-    df=pd.read_csv(url,skiprows=[1])
-    for k in range(len(df)):
-        #print df.time[k]
-        df.time[k]=parse(df.time[k][:-1])
-    df=df[df.longitude <=-20]
-    return df.time.values,df.latitude.values,df.longitude.values
-    
-
-def drifter_csv(start_time,drifter_ID,days):
-    dt_starttime = datetime.strptime(start_time, "%Y-%m-%d")
-    nodes=dict(lon=[],lat=[],time=[])
-    FN='ID_%s.csv' %drifter_ID 
-    D = np.genfromtxt(FN,dtype=None,names=['ID','TimeRD','TIME_GMT','YRDAY0_GMT','LON_DD','LAT_DD','TEMP','DEPTH_I'],delimiter=',')    
-
-    nodes['lon'] = D['LON_DD']
-    nodes['lat'] =  D['LAT_DD']
-    for i in range(len(D['YRDAY0_GMT'])):
-        a=[]
-        a=dt.datetime(2010,01,01,0,0,0,0)+timedelta(D['YRDAY0_GMT'][i])
-        nodes['time'].append(a)
-    #print nodes['time']
-        #starttime = np.array(temp[2][0])
-    if days:
-        #print start_time
-        endtime = dt_starttime+timedelta(days)
-        i = __cmptime(dt_starttime, nodes['time'])
-        j = __cmptime(endtime, nodes['time'])
-        nodes['lon'] = nodes['lon'][i:j+1]
-        nodes['lat'] = nodes['lat'][i:j+1]
-        nodes['time'] = nodes['time'][i:j+1]
+'''def timedeal(time):   
+    out_time=[]
+    out_times=[]
+    for t in range(len(time)):
+        outtime = datetime.strftime(time[t],'%H')
+        outtimes=int(outtime)
+        out_time.append(outtimes)
+    #print out_time
+    if out_time[2]-out_time[1]==out_time[1]-out_time[0]:
+        span_time=out_time[2]-out_time[1]
+        #print 1,span_time
     else:
-        print 'I need the days'
-    return nodes
+        if out_time[5]-out_time[4]==out_time[4]-out_time[3]:
+            span_time=out_time[5]-out_time[4]
+            #print 2,span_time
+        else:
+            print "span_time maybe 0.5h"
+            out_times=out_time
+    for i in range(24):
+        times=out_time[0]+span_time*i
+        if times<24:
+            out_times.append(times)
+        else:
+            times=times-24
+            out_times.append(times)
+            if times==out_time[0]:
+                break
+    return span_time,out_times'''
+'''def replenish_data(dis,span_time):    
+    for a in range(len(dis['dis'])):
+        for j in range(len(dis['dis'][a])-1):
+            #print len(dis['dis'][a])
+            if dis['time'][a][j+1]-dis['time'][a][j]!=span_time and dis['time'][a][j+1]-dis['time'][a][j]!=span_time-24:
+                p=dis['time'][a][j+1]-dis['time'][a][j] 
+                #print p
+                if p >0:
+                    t=p//span_time-1
+                    for tt in range(1,t+1,1):
+                        dis['dis'][a].insert(j+tt,dis['dis'][a][j])
+                        dis['time'][a].insert(j+tt,dis['time'][a][j]+span_time*tt)
+                if p<0:
+                    t=(24+p)//span_time-1
+                    for tt in range(1,t+1,1):
+                        dis['dis'][a].insert(j+tt,dis['dis'][a][j])
+                        dis['time'][a].insert(j+tt,dis['time'][a][j]+span_time*tt)
+    for a in range(len(dis['dis'])-1):
+        if dis['time'][a]!=dis['time'][a+1]:
+            print "bad data"
+    return dis'''
+    
+def calculate_SD(model_points,dmlon,dmlat):
+    meandis=[]    
+    dis=dict(dis=[],time=[])
+    for a in range(len(model_points['lon'])):
+        dd=[]
+        for j in range(len(model_points['lon'][a])):
+            d=haversine(model_points['lon'][a][j],model_points['lat'][a][j],dmlon[a][j],dmlat[a][j])#Calculate the distance between two points 
+            dd.append(d)  
+        dis['dis'].append(dd)
+        meansd=np.mean(dis['dis'][a])
+        meandis.append(meansd)
+    return dis['dis'],meandis
