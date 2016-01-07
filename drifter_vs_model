@@ -15,17 +15,24 @@ import csv
 from drifter_vs_model_function import get_drifter_track,get_fvcom,get_roms,cpdrtime,model_start_point,calculate_SD
 ######## Hard codes ##########
 method_of_drifter='oracle'#'raw''csv','oracle'   the method of get drifter data
-Model=['ROMS','30yr']#'GOM3','massbay','30yr','ROMS'# model want to be compair with drifter track
+Model=['30yr','ROMS']#'GOM3','massbay','30yr','ROMS'# model want to be compair with drifter track
 drifter_ID = []
 drifter_list='oracle_drifter_list.csv'#get from get_drifter_list code
 depth = 1 
-days=[3]#how many days want to compair#if use 'raw' max days is 3#how many drifter have how many data 
+days=[99]#how many days want to compair#if use 'raw' max days is 3#how many drifter have how many data 
 track_days=1#each time how many days want to compair
 restart_days=1#how many days you want to restart compair
-start_time =[dt.datetime(2012,06,02,0,0,0,0)]#dt.datetime(2012,06,02,0,0,0,0)#datetime.utcnow()-timedelta(days)#how many drifter have how many data 
+start_time =[dt.datetime(2012,06,01,0,0,0,0)]#dt.datetime(2012,06,02,0,0,0,0)#datetime.utcnow()-timedelta(days)#how many drifter have how many data 
 ######## Drifter and model track ##########
-drifterID=[];romsmeandis=[];romsmindis=[];romsmaxdis=[]
-yrmeandis=[];yrmindis=[];yrmaxdis=[]
+drifterID=[];distance=[]
+if 'ROMS' in Model:
+    romsmeandis=[];romsmindis=[];romsmaxdis=[]
+if '30yr' in Model:
+    yrmeandis=[];yrmindis=[];yrmaxdis=[]
+if 'GOM3' in Model:
+    gommeandis=[];gommindis=[];gommaxdis=[]
+if 'massbay' in Model:
+    massmeandis=[];massmindis=[];massmaxdis=[];
 if drifter_ID==[]:
     start_time=[]
     dr_points = np.genfromtxt(drifter_list,dtype=None,names=['ids','start_time','days'],delimiter=',',skip_header=1)    
@@ -35,8 +42,12 @@ if drifter_ID==[]:
         dt_time=datetime.strptime(dr_points['start_time'][i], '%Y-%m-%d'+' '+'%H:%M:%S+00:00')       
         start_time.append(dt_time)
     #print start_time
+else:
+    day=[]
+    for b in range(len(drifter_ID)):
+        day.append(99)        
         
-for q in range(len(drifter_ID)):          
+for q in range(len(drifter_ID)):        
     meandis=[]
     drifter_points = dict(lon=[],lat=[],time=[])
     if  method_of_drifter=='oracle':
@@ -47,7 +58,7 @@ for q in range(len(drifter_ID)):
         days.append(day[q])
 
     drifter_points,ids,drifter_points['time']=get_drifter_track(method_of_drifter,start_time[q],days[q+1],drifter_ID[q],id[q])
-#    span_time,out_times=timedeal(drifter_points['time'])
+    '''span_time,out_times=timedeal(drifter_points['time'])'''
     
     for i in Model:
         dis=dict(dis=[],time=[])
@@ -66,7 +77,7 @@ for q in range(len(drifter_ID)):
                 url_fvcom = get_obj.get_url(start_times,end_times)
                 b_points = get_obj.get_data(url_fvcom) # b_points is model boundary points.
                 modelpoint = get_obj.get_track(stpointlon,stpointlat,depth)
-                #print point
+                #print modelpoint
             if i=='ROMS':        
                 get_obj = get_roms()
                 url_roms = get_obj.get_url(start_times,end_times)
@@ -76,12 +87,12 @@ for q in range(len(drifter_ID)):
                     print 'Start point on the land or out of Model area.'
                 
             dtimenp = np.array(drifter_points['time'])
-            dst = dtimenp-start_times; dstindex = np.argmin(abs(dst))
-            det = dtimenp-end_times; detindex = np.argmin(abs(det))
-            drlon.append(drifter_points['lon'][dstindex:detindex+1])#track_days drifter point
+            dst = dtimenp-start_times; dstindex = np.argmin(abs(dst))#every compare days drifter start index
+            det = dtimenp-end_times; detindex = np.argmin(abs(det))#every compare days drifter end index
+            drlon.append(drifter_points['lon'][dstindex:detindex+1])#very compare days drifter point
             drlat.append(drifter_points['lat'][dstindex:detindex+1])
             
-            modelpoints['lon'],modelpoints['lat'],modelpoints['time']=cpdrtime(drifter_points['time'][dstindex:detindex+1],modelpoint['lon'],modelpoint['lat'],modelpoint['time'])#compare to the drifter time get the model same time data
+            modelpoints['lon'],modelpoints['lat'],modelpoints['time']=cpdrtime(drifter_points['time'][dstindex:detindex+1],modelpoint['lon'],modelpoint['lat'],modelpoint['time'])#compare to the drifter time get the  same time model data
             model_points['lon'].append(modelpoints['lon']); model_points['lat'].append(modelpoints['lat']);model_points['time'].append(modelpoints['time'])#model_points is all days data modelpoints is only one days data
         #print model_points['time']
         '''for a in range(len(model_points['lon'])):
@@ -99,7 +110,8 @@ for q in range(len(drifter_ID)):
         #print len(model_points['lon']),len(drifter_points['lon'])
         dis['dis'],meandis=calculate_SD(model_points,drlon,drlat)
         #print meandis
-        #dis=replenish_data(dis,span_time)
+        distance.extend(meandis)
+        '''dis=replenish_data(dis,span_time)'''
         #print dis 
 #########plot######
         plt.figure(1) 
@@ -109,8 +121,9 @@ for q in range(len(drifter_ID)):
         for a in range(len(model_points['lon'])):
             plt.plot(model_points['lon'][a],model_points['lat'][a],'ro-')
             #print len(model_points['lon'][a])
-        plt.legend(['drifter track','%s model track' %i] ,1)
+        #plt.legend(['drifter track','%s model track' %i] ,1)
         plt.grid(True)
+        #plt.savefig('drifter %s model %s track' %(ids,i) )
         plt.show()
         
         plt.figure(2) 
@@ -118,33 +131,73 @@ for q in range(len(drifter_ID)):
         #print out_times,type(out_times),type(out_times[1]),dis_times,type(dis_times[1]),type(dis_times[1][1])
         plt.ylabel('distance')        
         #plt.xticks((np.arange(len(out_times))),(out_times))
-        for a in range(len(model_points['lon'])):
+        for a in range(len(meandis)):
             plt.plot(dis['dis'][a],label='%s model the %i day SD' % (i,a+1) )
-            plt.text(len(dis['dis'][a])-1,dis['dis'][a][-1],'meandis=%s' %(meandis[a]),color='red',fontsize=a+10)
-            plt.legend()
+            plt.text(len(dis['dis'][a])-1,dis['dis'][a][-1],'meandis=%.2f' %(meandis[a]),color='red',fontsize=12)
+            #plt.legend()
+        #plt.savefig('drifter %s model %s SD' %(ids,i) )
         plt.show()#different day drifter data maybe hiatus in different time
         '''plt.title('distance between drifter and %s model' %i)
-        #plt.xlabel('per hours')
-        #plt.xticks((np.arange(len(dr_points['time']))),(dr_points['time']))
-        #plt.ylabel('distance')'''
-#### make a chat###
-        drifterID.append(drifter_ID[q])
+        plt.xlabel('per hours')
+        plt.xticks((np.arange(len(dr_points['time']))),(dr_points['time']))
+        plt.ylabel('distance')'''
+#### make a chat###      
         if i == 'ROMS':
             romsmeandis.append(np.mean(meandis))
             romsmindis.append(min(meandis))
             romsmaxdis.append(max(meandis))
-        elif i == '30yr':
+        if i == '30yr':
             yrmeandis.append(np.mean(meandis))
             yrmindis.append(min(meandis))
             yrmaxdis.append(max(meandis))
+        if i == 'GOM3':
+            gommeandis.append(np.mean(meandis))
+            gommindis.append(min(meandis))
+            gommaxdis.append(max(meandis))
+        if i == 'massbay':
+            massmeandis.append(np.mean(meandis))
+            massmindis.append(min(meandis))
+            massmaxdis.append(max(meandis))
+    drifterID.append(drifter_ID[q])
+drifterID.append('mean')
+data=[];tdata=[];model=[]
+if 'ROMS' in Model:
+    romsmeandis.append(np.mean(romsmeandis));romsmindis.append(min(romsmindis));romsmaxdis.append(max(romsmaxdis))
+    data.append(romsmeandis);data.append(romsmindis);data.append(romsmaxdis);
+    model.append('ROMS')
+if '30yr' in Model:
+    yrmeandis.append(np.mean(yrmeandis));yrmindis.append(min(yrmindis));yrmaxdis.append(max(yrmaxdis))
+    data.append(yrmeandis);data.append(yrmindis);data.append(yrmaxdis);
+    model.append('30yr')
+if 'GOM3' in Model:
+    gommeandis.append(np.mean(gommeandis));gommindis.append(min(gommindis));gommaxdis.append(max(gommaxdis))
+    data.append(gommeandis);data.append(gommindis);data.append(gommaxdis);
+    model.append('GOMS')
+if 'massbay' in Model:
+    massmeandis.append(np.mean(massmeandis));massmindis.append(min(massmindis));massmaxdis.append(max(massmaxdis))
+    data.append(massmeandis);data.append(massmindis);data.append(massmaxdis);
+    model.append('massbay')
 
-    
-data=[]
-data.append(drifterID);data.append(romsmeandis);data.append(romsmindis);data.append(romsmaxdis);data.append(yrmeandis);data.append(yrmindis);data.append(yrmaxdis);
-chat=map(list, zip(*data))
+tdata.append(drifterID)
+for w in range(0,len(data),1):
+    ldata=[]    
+    for e in data[w]:
+        e="%.2f" %e
+        ldata.append(e)
+    tdata.append(ldata)
+        
+chat=map(list, zip(*tdata))
 #print chat
 csvfile = file('drifter_vs_model.csv', 'wb')
 writer = csv.writer(csvfile)
-writer.writerow(['ids', 'roms_meandis', 'roms_mindis','roms_maxdis','30yr_meandis', '30yr_mindis','30yr_maxdis'])
+writer.writerow(['ids', '%s_meandis(km)' %model[0] , 'mindis(km)','maxdis(km)','%s_meandis(km)' %model[1] , 'mindis(km)','maxdis(km)'])
 writer.writerows(chat)
 csvfile.close() 
+
+plt.plot(romsmeandis,'bo-')
+plt.plot(yrmeandis,'ro-')
+plt.show() 
+
+y=np.random.randn(len(distance))
+plt.scatter(distance,y)
+plt.show() 
