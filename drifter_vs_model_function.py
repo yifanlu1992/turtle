@@ -875,7 +875,7 @@ def haversine(lon1, lat1, lon2, lat2):
     a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2  
     c = 2 * asin(sqrt(a))   
     r = 6371 
-    return c * r * 1000  
+    return c * r  
 '''def timedeal(time):   
     out_time=[]
     out_times=[]
@@ -936,5 +936,6 @@ def calculate_SD(model_points,dmlon,dmlat):
             dd.append(d)  
         dis['dis'].append(dd)
         meansd=np.mean(dis['dis'][a])
-        meandis.append(meansd)
+        if meansd!=0:
+            meandis.append(meansd)
     return dis['dis'],meandis
