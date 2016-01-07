@@ -1,0 +1,101 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Dec 21 10:00:38 2015
+
+@author: zdong
+"""
+import csv
+import datetime as dt
+import pandas as pd
+import pytz
+from dateutil.parser import parse
+####hard code###
+input_time=[dt.datetime(2009,10,11,0,0,0,0,pytz.UTC),dt.datetime(2014,1,1,0,0,0,0,pytz.UTC)] # start time and end time
+gbox=[-71.0,-75.0,40.0,37.0] 
+filename='oracle_drifter_list.csv'
+#######function###
+def getobs_drift_byrange(gbox,input_time):
+    """
+   Function written by Huanxin and used in "getdrifter_erddap.py"
+   get data from url, return id, latitude,longitude, and times
+   gbox includes 4 values, maxlon, minlon,maxlat,minlat, like:  [-69.0,-73.0,41.0,40.82]
+   input_time can either contain two values: start_time & end_time OR one  value:interval_days
+   and they should be timezone aware
+   example: input_time=[dt(2012,1,1,0,0,0,0,pytz.UTC),dt(2012,2,1,0,0,0,0,pytz.UTC)]
+   """
+    lon_max=gbox[0];lon_min=gbox[1];lat_max=gbox[2];lat_min=gbox[3]
+    mintime=input_time[0].strftime('%Y-%m-%d'+'T'+'%H:%M:%S'+'Z')  # change time format
+    maxtime=input_time[1].strftime('%Y-%m-%d'+'T'+'%H:%M:%S'+'Z')
+    # open url to get data
+    url='http://comet.nefsc.noaa.gov:8080/erddap/tabledap/drifters.csv?id&time>='\
+    +str(mintime)+'&time<='+str(maxtime)+'&latitude>='\
+    +str(lat_min)+'&latitude<='+str(lat_max)+'&longitude>='+str(lon_min)+'&longitude<='+str(lon_max)+'&orderBy("id")'
+    df=pd.read_csv(url,skiprows=[1])
+    ids=df.id.values
+    news_ids = []
+    for id in ids:
+        if id not in news_ids:
+            news_ids.append(id)
+
+
+    return news_ids
+
+
+def getobs_drift_byidrange(id,gbox,input_time):
+    """
+     Function written  by Huanxin and used by getdrifter_erddap.py
+     get data from url, return ids latitude,longitude, times
+     input_time can either contain two values: start_time & end_time OR one value:interval_days
+     and they should be timezone aware
+     example: input_time=[dt(2012,1,1,0,0,0,0,pytz.UTC),dt(2012,2,1,0,0,0,0,pytz.UTC)]
+     """
+    mintime=input_time[0].strftime('%Y-%m-%d'+'T'+'%H:%M:%S'+'Z')  # change time format
+    maxtime=input_time[1].strftime('%Y-%m-%d'+'T'+'%H:%M:%S'+'Z')   
+    lon_max=gbox[0];lon_min=gbox[1];lat_max=gbox[2];lat_min=gbox[3]
+    # open url to get data
+    url='http://comet.nefsc.noaa.gov:8080/erddap/tabledap/drifters.csv?id,time,latitude,longitude&time>='\
+    +str(mintime)+'&time<='+str(maxtime)+'&latitude>='+str(lat_min)+'&latitude<='+str(lat_max)+'&longitude>='\
+    +str(lon_min)+'&longitude<='+str(lon_max)+'&id="'+str(id)+'"&orderBy("id,time")'
+    df=pd.read_csv(url,skiprows=[1])
+    #print df,type(df)
+    for k in range(len(df)):
+       df.time[k]=parse(df.time[k])
+
+    return df.time.values,df.id.values
+    
+
+    
+
+#####code  
+drifter_data=[]
+drifter=dict(ids=[],time=[],)    
+drifters=dict(ids=[],start_time=[],days=[])    
+ids=getobs_drift_byrange(gbox,input_time)
+#print ids
+for i in range(len(ids)):
+    #print i
+    drifter['time'],drifter['ids']=getobs_drift_byidrange(ids[i],gbox,input_time)
+    #print     drifter['time']
+    days=drifter['time'][-1]-drifter['time'][0] 
+    '''for a in range(len(drifter['time'])-1):
+        time=drifter['time'][a+1]-drifter['time'][a]
+        if time.days>=3:
+            days=drifter['time'][a]-drifter['time'][0]
+            break'''
+   
+    day=days.days
+    #print days
+    if day>=2:
+        drifters['ids'].append(ids[i]);drifters['start_time'].append(drifter['time'][0]);drifters['days'].append(day)
+    #print drifters
+drifter_data.append(drifters['ids'])
+drifter_data.append(drifters['start_time'])
+drifter_data.append(drifters['days'])
+dr=map(list, zip(*drifter_data))
+
+###make a list
+csvfile = file(filename, 'wb')
+writer = csv.writer(csvfile)
+writer.writerow(['ids', 'start_time', 'days'])
+writer.writerows(dr)
+csvfile.close() 
