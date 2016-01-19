@@ -13,7 +13,7 @@ import numpy as np
 import math
 import pandas as pd
 from datetime import datetime, timedelta
-from math import radians, cos, sin, asin, sqrt  
+from math import radians, cos, sin, atan, sqrt  
 ######## function ##########
 def getrawdrift(did,filename):
    '''
@@ -605,7 +605,7 @@ class get_roms():
     def __init__(self):
         pass
     
-    def nearest_point(self, lon, lat, lons, lats, length=0.06):  #0.3/5==0.06
+    def nearest_point(self, lon, lat, lons, lats, length=0.1):  #0.3/5==0.06
         '''Find the nearest point to (lon,lat) from (lons,lats),
            return the nearest-point (lon,lat)
            author: Bingwei'''
@@ -827,7 +827,8 @@ class get_roms():
             
         return nodes      
 def model_start_point(time,starttime,drlon,drlat):
-    '''get the model everyday start point '''
+    '''get the model everyday restart point
+    starttime is new time you want to get '''
     #print type(time),time
     nptime=np.array(time)
     #print nptime,starttime
@@ -852,6 +853,7 @@ def cpdrtime(drtime,pointlon,pointlat,pointtime):
     #print npdrtimes,npmotimes
     for i in npdrtimes:
         md=npmotimes-i
+        #print md
         index = np.argmin(abs(md))
         #print md
         npmotime=npmotimes[index]
@@ -873,12 +875,11 @@ def haversine(lon1, lat1, lon2, lat2):
     dlon = lon2 - lon1   
     dlat = lat2 - lat1   
     a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2  
-    c = 2 * asin(sqrt(a))   
+    c = 2 * atan(sqrt(a)/sqrt(1-a))   
     r = 6371 
-    return c * r  
+    return c * r
 '''def timedeal(time):   
     out_time=[]
-    out_times=[]
     for t in range(len(time)):
         outtime = datetime.strftime(time[t],'%H')
         outtimes=int(outtime)
@@ -903,7 +904,7 @@ def haversine(lon1, lat1, lon2, lat2):
             out_times.append(times)
             if times==out_time[0]:
                 break
-    return span_time,out_times'''
+    return span_time'''
 '''def replenish_data(dis,span_time):    
     for a in range(len(dis['dis'])):
         for j in range(len(dis['dis'][a])-1):
@@ -926,16 +927,63 @@ def haversine(lon1, lat1, lon2, lat2):
             print "bad data"
     return dis'''
     
-def calculate_SD(model_points,dmlon,dmlat):
-    meandis=[]    
+def calculate_SD(model_points,dmlon,dmlat,drtime):
+    '''compare the model_points and drifter point(time same as model point)'''
+    meandis=[];
     dis=dict(dis=[],time=[])
+    #print model_points
     for a in range(len(model_points['lon'])):
         dd=[]
         for j in range(len(model_points['lon'][a])):
             d=haversine(model_points['lon'][a][j],model_points['lat'][a][j],dmlon[a][j],dmlat[a][j])#Calculate the distance between two points 
-            dd.append(d)  
+            #print model_points['lon'][a][j],model_points['lat'][a][j],dmlon[a][j],dmlat[a][j],d           
+            if d!=0:  
+                distance=[]
+                b=(drtime[a][j]-drtime[a][0]).seconds/60
+                #print drtime[a][j],drtime[a][0]
+                if (drtime[a][j]-drtime[a][0]).days==1:
+                    b=1440
+                    distance=d/b
+                elif drtime[a][j]==drtime[a][0] and (drtime[a][0]-drtime[a-1][0]).seconds!=0:                   
+                    distance=0
+                else:
+                    distance=d/b
+                     
+                dd.append(distance*1440)
+            else:
+                dd.append(d)
+            #print dd
         dis['dis'].append(dd)
+        #print dis['dis']
         meansd=np.mean(dis['dis'][a])
         if meansd!=0:
             meandis.append(meansd)
     return dis['dis'],meandis
+def timedeal(time):
+    span=[]
+    for i in range(len(time)-1):
+        span.append((time[i+1]-time[i]).seconds)
+    span_time=min(span)/60
+    return span_time
+def dealdrpoint(start_time,days,lons,lats,times):
+    cprtime=[];npdrdellon=[];npdrdellat=[];npdrdeltime=[]
+    cprstime=start_time.replace(minute=0)
+    cpretime=cprstime+timedelta(days=days)
+    for i in range((cpretime-cprstime).days*24):
+        cprtime.append(cprstime+timedelta(hours=i))
+    npcprtimes = np.array(cprtime)
+    npdrlons = np.array(lons)
+    npdrlats = np.array(lats)
+    npdrtimes = np.array(times)
+    for i in npcprtimes:
+        md=npdrtimes-i
+        index = np.argmin(abs(md))
+        #print md
+        npdrtime=npdrtimes[index]
+        npdrlon=npdrlons[index]    
+        npdrlat=npdrlats[index]
+        npdrdellon.append(npdrlon)
+        npdrdellat.append(npdrlat)
+        npdrdeltime.append(npdrtime)
+    return npdrdellon,npdrdellat,npdrdeltime
+    
