@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 Created on Mon Dec 21 10:00:38 2015
-
-@author: zdong
+read data from oracle websit 
+given a range and time get drifter id
+give id and range get the time 
+finally get a table have id,start time and days
+@author: qianran
 """
 import csv
 import datetime as dt
@@ -11,7 +14,7 @@ import pytz
 from dateutil.parser import parse
 ####hard code###
 input_time=[dt.datetime(2009,10,11,0,0,0,0,pytz.UTC),dt.datetime(2014,1,1,0,0,0,0,pytz.UTC)] # start time and end time
-gbox=[-71.0,-75.0,40.0,37.0] 
+gbox=[-71.0,-75.0,40.0,37.5]#ROMS and 30yr []
 filename='oracle_drifter_list.csv'
 #######function###
 def getobs_drift_byrange(gbox,input_time):
@@ -69,28 +72,47 @@ def getobs_drift_byidrange(id,gbox,input_time):
 #####code  
 drifter_data=[]
 drifter=dict(ids=[],time=[],)    
-drifters=dict(ids=[],start_time=[],days=[])    
+drifters=dict(ids=[],start_time=[],end_time=[],days=[])    
 ids=getobs_drift_byrange(gbox,input_time)
+ID=[];days=[];starttime=[]
 #print ids
 for i in range(len(ids)):
-    #print i
+   # print ids[i]
     drifter['time'],drifter['ids']=getobs_drift_byidrange(ids[i],gbox,input_time)
     #print     drifter['time']
-    days=drifter['time'][-1]-drifter['time'][0] 
+    st=0
+    for r in range(len(drifter['time'])-1):       
+        #print (drifter['time'][r+1]-drifter['time'][r]).days,st,r,len(drifter['time'])
+        if (drifter['time'][r+1]-drifter['time'][r]).days>1:
+            day=(drifter['time'][r]-drifter['time'][st]).days
+            #print days
+            if day>=2:
+                #print 1
+                ID.append(ids[i])
+                starttime.append(drifter['time'][st])
+                days.append(day)
+            st=r+1
+            continue
+        elif  r==(len(drifter['time'])-2):
+            #print 2
+            day=(drifter['time'][r]-drifter['time'][st]).days
+            #print days
+            if day>=2:
+               # print 3
+                ID.append(ids[i])
+                starttime.append(drifter['time'][st])
+                days.append(day)
+    #print days,starttime,ID        
     '''for a in range(len(drifter['time'])-1):
         time=drifter['time'][a+1]-drifter['time'][a]
         if time.days>=3:
             days=drifter['time'][a]-drifter['time'][0]
             break'''
-   
-    day=days.days
-    #print days
-    if day>=2:
-        drifters['ids'].append(ids[i]);drifters['start_time'].append(drifter['time'][0]);drifters['days'].append(day)
-    #print drifters
-drifter_data.append(drifters['ids'])
-drifter_data.append(drifters['start_time'])
-drifter_data.append(drifters['days'])
+
+drifter_data.append(ID)
+drifter_data.append(starttime)
+drifter_data.append(days)
+#print drifter_data
 dr=map(list, zip(*drifter_data))
 
 ###make a list
