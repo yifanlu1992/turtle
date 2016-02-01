@@ -1,0 +1,514 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Jan 29 09:45:44 2016
+
+@author: qianran
+"""
+import csv
+import datetime as dt
+import pandas as pd
+import pytz
+import numpy as np
+from dateutil.parser import parse
+from matplotlib.path import Path
+#######function###
+def nearlonlat(lon,lat,lonp,latp):
+    #print lon,lat,lonp,latp
+    """
+i=nearlonlat(lon,lat,lonp,latp)
+find the closest node in the array (lon,lat) to a point (lonp,latp)
+input:
+lon,lat - np.arrays of the grid nodes, spherical coordinates, degrees
+lonp,latp - point on a sphere
+output:
+i - index of the closest node
+min_dist - the distance to the closest node, degrees
+For coordinates on a plane use function nearxy
+
+Vitalii Sheremet, FATE Project
+"""
+    cp=np.cos(latp*np.pi/180.)
+# approximation for small distance
+    dx=(lon-lonp)*cp
+    dy=lat-latp
+    dist2=dx*dx+dy*dy
+# dist1=np.abs(dx)+np.abs(dy)
+    i=np.argmin(dist2)
+#    min_dist=np.sqrt(dist2[i])
+    return i 
+
+def polygonal_barycentric_coordinates(xp,yp,xv,yv):
+    """
+Calculate generalized barycentric coordinates within an N-sided polygon.
+
+    w=polygonal_barycentric_coordinates(xp,yp,xv,yv)
+    
+    xp,yp - a point within an N-sided polygon
+    xv,yv - vertices of the N-sided polygon, length N
+    w     - polygonal baricentric coordinates, length N,
+            normalized w.sum()=1
+   
+Used for function interpolation:
+    fp=(fv*w).sum()
+    where fv - function values at vertices,
+    fp the interpolated function at the point (xp,yp)
+    
+    N=2 -> lenear interpolation
+    N=1 -> fixed value w=1
+    
+Vitalii Sheremet, FATE Project    
+    """
+    N=len(xv)
+    if N>2:
+        j=np.arange(N)
+        ja=(j+1)%N # next vertex in the sequence 
+        jb=(j-1)%N # previous vertex in the sequence
+    # area of the chord triangle j-1,j,j+1
+        Ajab=np.cross(np.array([xv[ja]-xv[j],yv[ja]-yv[j]]).T,np.array([xv[jb]-xv[j],yv[jb]-yv[j]]).T) 
+    # area of triangle p,j,j+1
+        Aj=np.cross(np.array([xv[j]-xp,yv[j]-yp]).T,np.array([xv[ja]-xp,yv[ja]-yp]).T)  
+    
+    # In FVCOM A is O(1.e7 m2) .prod() may result in inf
+    # to avoid this scale A
+        AScale=max(abs(Aj))
+        Aj=Aj/AScale
+        Ajab=Ajab/AScale
+        
+        w=xv*0.
+        j2=np.arange(N-2)
+        
+        for j in range(N):
+    # (j2+j+1)%N - list of triangles except the two adjacent to the edge pj
+    # For hexagon N=6 j2=0,1,2,3; if j=3  (j2+j+1)%N=4,5,0,1
+            w[j]=Ajab[j]*Aj[(j2+j+1)%N].prod()
+    # timing [s] per step:  1.1976 1.478
+    # timing [s] per step:  1.2048 1.4508 
+            
+    #    w=np.array([Ajab[j]*Aj[(j2+j+1)%N].prod() for j in range(N)])
+    # timing [s] per step:  1.2192 1.4572
+    # list comprehension does not affect speed
+        w=w/w.sum() 
+
+# for areas close to boundary
+    elif N==2:
+        w=xv*0.
+        w[0]=np.dot(np.array([xv[1]-xp,yv[1]-yp]).T,np.array([xv[1]-xv[0],yv[1]-yv[0]]).T)    
+        w[1]=np.dot(np.array([xp-xv[0],yp-yv[0]]).T,np.array([xv[1]-xv[0],yv[1]-yv[0]]).T)
+    # normalize w so that sum(w)=1       
+        w=w/w.sum()
+        Aj=w*0.
+
+    elif N==1:
+        w=xv*0.+1.
+        Aj=w*0.
+       
+    return w,Aj
+
+    
+def ingom3(lonp,latp,Grid):
+    """
+check if point is inside GOM3 mesh
+
+    i=ingom3(lonp,latp,Grid)
+    
+    lonp,latp - arrays of points where the interpolated velocity is desired
+    Grid - parameters of the triangular grid
+
+    i - boolean, True if lonp,latp inside GOM3, False otherwise
+    
+    """
+
+# find the nearest vertex    
+    kv=nearlonlat(Grid['lon'],Grid['lat'],lonp,latp)
+#    print kv
+# list of triangles surrounding the vertex kv    
+    kfv=Grid['kfv'][0:Grid['nfv'][kv],kv]
+#    print kfv
+# coordinates of the (dual mesh) polygon vertices: the centers of triangle faces
+    lonv=Grid['lonc'][kfv];latv=Grid['latc'][kfv] 
+    w,Aj=polygonal_barycentric_coordinates(lonp,latp,lonv,latv)
+# baricentric coordinates are invariant wrt coordinate transformation (xy - lonlat), check! 
+
+# Check whether any Aj are negative, which would mean that a point is outside the polygon.
+# Otherwise, the polygonal interpolation will not be continous.
+# This check is not needed if the triangular mesh and its dual polygonal mesh
+# are Delaunay - Voronoi. 
+
+# normalize subareas by the total area 
+# because the area sign depends on the mesh orientation.    
+    Aj=Aj/Aj.sum()
+    if np.argwhere(Aj<0).flatten().size>0:
+# if point is outside the polygon try neighboring polygons
+#        print kv,kfv,Aj
+        for kv1 in Grid['kvv'][0:Grid['nvv'][kv],kv]:
+            kfv1=Grid['kfv'][0:Grid['nfv'][kv1],kv1]
+            lonv1=Grid['lonc'][kfv1];latv1=Grid['latc'][kfv1] 
+            w1,Aj1=polygonal_barycentric_coordinates(lonp,latp,lonv1,latv1)
+            Aj1=Aj1/Aj1.sum()
+            if np.argwhere(Aj1<0).flatten().size==0:
+                w=w1;kfv=kfv1;kv=kv1;Aj=Aj1
+#                print kv,kfv,Aj
+
+# Now there should be no negative w
+# unless the point is outside the triangular mesh
+    i=(w>=0.).all()
+        
+    return i
+    
+
+def get_fvcom_gom3_grid(a='disk'):
+    """
+    Grid=get_fvcom_gom3_grid(a='disk')
+    
+    returns FVCOM GOM3 triangular grid parameters
+    
+    input:
+    a='disk' - quick load from disk, default 
+    a='disk2' - load from disk and derive kvv,kfv, etc
+    a='web' - get from web
+    
+    output:
+    Grid={'x':x,'y':y,'xc':xc,'yc':yc,'lon':lon,'lat':lat,'lonc':lonc,'latc':latc,'coslat':coslat,'coslatc':coslatc,'h':h,'kvf':kvf,'kff':kff,'kvv':kvv,'nvv':nvv,'kfv':kfv,'nfv':nfv}
+    a dictionary with arrays defining FVCOM GOM3 triangular grid
+    
+    @author: Vitalii Sheremet, FATE Project 2012-2014
+    
+    2014-04-14 fixed nvv, nfv: removed the identical entry count in nvv
+    Note that in the interior FVCOM ntsn = ntve +1 (by mistake?);
+    however, nvv and nfv are set equal.
+    """
+#    a='disk'
+    import numpy as np
+    
+    if a=='disk':
+    # quick load from disk
+        x=np.load('gom3.x.npy')
+        y=np.load('gom3.y.npy')
+        xc=np.load('gom3.xc.npy')
+        yc=np.load('gom3.yc.npy')
+        
+        lon=np.load('gom3.lon.npy')
+        lat=np.load('gom3.lat.npy')
+        lonc=np.load('gom3.lonc.npy')
+        latc=np.load('gom3.latc.npy')
+        
+        coslat=np.load('gom3.coslat.npy')
+        coslatc=np.load('gom3.coslatc.npy')
+        
+        h=np.load('gom3.h.npy')
+        
+        kvf=np.load('gom3.kvf.npy')
+        kff=np.load('gom3.kff.npy')
+        kvv=np.load('gom3.kvv.npy')
+        nvv=np.load('gom3.nvv.npy')
+        kfv=np.load('gom3.kfv.npy')
+        nfv=np.load('gom3.nfv.npy')
+    
+        Grid={'x':x,'y':y,'xc':xc,'yc':yc,'lon':lon,'lat':lat,'lonc':lonc,'latc':latc,'coslat':coslat,'coslatc':coslatc,'h':h,'kvf':kvf,'kff':kff,'kvv':kvv,'nvv':nvv,'kfv':kfv,'nfv':nfv}
+
+    elif a=='disk2':
+    # load native fvcom variables from disk and calculate variables with new names
+
+        x=np.load('gom3.x.npy')
+        y=np.load('gom3.y.npy')
+        xc=np.load('gom3.xc.npy')
+        yc=np.load('gom3.yc.npy')
+        
+        lon=np.load('gom3.lon.npy')
+        lat=np.load('gom3.lat.npy')
+        lonc=np.load('gom3.lonc.npy')
+        latc=np.load('gom3.latc.npy')
+        
+        h=np.load('gom3.h.npy')
+        
+        # precalculate Lame coefficients for the spherical coordinates
+        coslat=np.cos(lat*np.pi/180.)
+        coslatc=np.cos(latc*np.pi/180.)
+        
+        # In the following: kvf,kff,kvv,nvv,kfv,nfv 
+        # k indicates index (zero based), 
+        # n indicates the number of items
+        
+        #nv: Array of 32 bit Integers [three = 0..2][nele = 0..90414] 
+        #long_name: nodes surrounding element
+        #standard_name: face_node_connectivity
+        #start_index: 1
+        nv=np.load('gom3.nv.npy')
+        # vertices corresponding to a given face
+        kvf=nv-1 # convert from FORTRAN to python 0-based indexing
+        #nv-=1 # convert from FORTRAN to python 0-based indexing
+        #kvf=nv
+        
+        #nbe: Array of 32 bit Integers [three = 0..2][nele = 0..90414] 
+        # long_name: elements surrounding each element
+        nbe=np.load('gom3.nbe.npy')
+        # faces surrounding a given face
+        kff=nbe-1 # convert from FORTRAN to python 0-based indexing
+        #nbe-=1 # convert from FORTRAN to python 0-based indexing
+        #kff=nbe
+        
+        #nbsn: Array of 32 bit Integers [maxnode = 0..10][node = 0..48450]
+        #long_name: nodes surrounding each node
+         # list of nodes surrounding a given node, 1st and last entries identical to make a closed loop
+        nbsn=np.load('gom3.nbsn.npy')
+        # vertices surrounding a given vertex
+        kvv=nbsn-1 # convert from FORTRAN to python 0-based indexing
+        #nbsn-=1 # convert from FORTRAN to python 0-based indexing
+        #kvv=nbsn
+        
+        #ntsn: Array of 32 bit Integers [node = 0..48450]
+        #long_name: #nodes surrounding each node
+         # the number of nodes surrounding a given node + 1, because 1st and last entries identical to make a closed loop
+        ntsn=np.load('gom3.ntsn.npy')
+        # number of vertices surrounding a given vertex
+        #nvv=ntsn
+        nvv=ntsn-1 # remove the same node
+        
+        #nbve: Array of 32 bit Integers [maxelem = 0..8][node = 0..48450] 
+        #long_name: elems surrounding each node
+        # list of elements surrounding a given node, 1st and last entries identical to make a closed loop
+        nbve=np.load('gom3.nbve.npy')
+        # faces surrounding a given vertex
+        kfv=nbve-1 # convert from FORTRAN to python 0-based indexing
+        #nbve-=1 # convert from FORTRAN to python 0-based indexing
+        #kfv=nbve
+        
+        #ntve: Array of 32 bit Integers [node = 0..48450] 
+        #long_name: #elems surrounding each node
+        # the number of elements surrounding a given node 
+        # (+ 1 not added, though 1st and last entries identical to make a closed loop
+        ntve=np.load('gom3.ntve.npy')
+        # number of faces surrounding a given vertex
+        #nfv=ntve
+        nfv=ntve 
+                
+        #Grid={'x':x,'y':y,'xc':xc,'yc':yc,'lon':lon,'lat':lat,'lonc':lonc,'latc':latc,'coslat':coslat,'coslatc':coslatc,'kvf':nv,'kff':nbe,'kvv':nbsn,'nvv':ntsn,'kfv':nbve,'nfv':ntve}
+        #Grid={'x':x,'y':y,'xc':xc,'yc':yc,'lon':lon,'lat':lat,'lonc':lonc,'latc':latc,'coslat':coslat,'coslatc':coslatc,'kvf':kvf,'kff':kff,'kvv':kvv,'nvv':nvv,'kfv':kfv,'nfv':nfv}
+        
+        np.save('gom3.coslat.npy',coslat)
+        np.save('gom3.coslatc.npy',coslatc)
+        np.save('gom3.kvf.npy',kvf)
+        np.save('gom3.kff.npy',kff)
+        np.save('gom3.kvv.npy',kvv)
+        np.save('gom3.nvv.npy',nvv)
+        np.save('gom3.kfv.npy',kfv)
+        np.save('gom3.nfv.npy',nfv)
+
+
+        kvf=np.load('gom3.kvf.npy')
+        kff=np.load('gom3.kff.npy')
+        kvv=np.load('gom3.kvv.npy')
+        nvv=np.load('gom3.nvv.npy')
+        kfv=np.load('gom3.kfv.npy')
+        nfv=np.load('gom3.nfv.npy')
+    
+        Grid={'x':x,'y':y,'xc':xc,'yc':yc,'lon':lon,'lat':lat,'lonc':lonc,'latc':latc,'coslat':coslat,'coslatc':coslatc,'h':h,'kvf':kvf,'kff':kff,'kvv':kvv,'nvv':nvv,'kfv':kfv,'nfv':nfv}
+    
+    elif a=='web':
+        
+        #from pydap.client import open_url # pydap version
+        from netCDF4 import Dataset        # netCDF4 version
+        URL='http://www.smast.umassd.edu:8080/thredds/dodsC/fvcom/hindcasts/30yr_gom3'
+        #http://www.smast.umassd.edu:8080/thredds/dodsC/fvcom/hindcasts/30yr_gom3?
+        #a1u[0:1:3][0:1:90414],a2u[0:1:3][0:1:90414],art1[0:1:48450],art2[0:1:48450],
+        #aw0[0:1:2][0:1:90414],awx[0:1:2][0:1:90414],awy[0:1:2][0:1:90414],cc_hvc[0:1:90414],
+        #h[0:1:48450],lat[0:1:48450],latc[0:1:90414],lon[0:1:48450],lonc[0:1:90414],
+        #nbe[0:1:2][0:1:90414],nbsn[0:1:10][0:1:48450],nbve[0:1:8][0:1:48450],
+        #nn_hvc[0:1:48450],nprocs,ntsn[0:1:48450],ntve[0:1:48450],nv[0:1:2][0:1:90414],
+        #partition[0:1:90414],siglay[0:1:44][0:1:48450],siglev[0:1:45][0:1:48450],
+        #x[0:1:48450],xc[0:1:90414],y[0:1:48450],yc[0:1:90414],z0b[0:1:90414],
+        #Itime[0:1:171882],Itime2[0:1:171882],Times[0:1:171882],file_date[0:1:171882],
+        #iint[0:1:171882],kh[0:1:171882][0:1:45][0:1:48450],
+        #km[0:1:171882][0:1:45][0:1:48450],kq[0:1:171882][0:1:45][0:1:48450],
+        #l[0:1:171882][0:1:45][0:1:48450],net_heat_flux[0:1:171882][0:1:48450],
+        #omega[0:1:171882][0:1:45][0:1:48450],q2[0:1:171882][0:1:45][0:1:48450],
+        #q2l[0:1:171882][0:1:45][0:1:48450],salinity[0:1:171882][0:1:44][0:1:48450],
+        #short_wave[0:1:171882][0:1:48450],temp[0:1:171882][0:1:44][0:1:48450],
+        #time[0:1:171882],u[0:1:171882][0:1:44][0:1:90414],ua[0:1:171882][0:1:90414],
+        #uwind_stress[0:1:171882][0:1:90414],v[0:1:171882][0:1:44][0:1:90414],
+        #va[0:1:171882][0:1:90414],vwind_stress[0:1:171882][0:1:90414],
+        #ww[0:1:171882][0:1:44][0:1:90414],zeta[0:1:171882][0:1:48450]
+        
+        #ds=open_url(URL)                 # pydap version 
+        ds = Dataset(URL,'r').variables   # netCDF4 version
+        
+        #xxx=ds['xxx']; np.save('gom3.xxx.npy',np.array(xxx))
+        a1u=ds['a1u']; np.save('gom3.a1u.npy',np.array(a1u))
+        a2u=ds['a2u']; np.save('gom3.a2u.npy',np.array(a2u))
+        art1=ds['art1']; np.save('gom3.art1.npy',np.array(art1))
+        art2=ds['art2']; np.save('gom3.art2.npy',np.array(art2))
+        aw0=ds['aw0']; np.save('gom3.aw0.npy',np.array(aw0))
+        awx=ds['awx']; np.save('gom3.awx.npy',np.array(awx))
+        awy=ds['awy']; np.save('gom3.awy.npy',np.array(awy))
+        cc_hvc=ds['cc_hvc']; np.save('gom3.cc_hvc.npy',np.array(cc_hvc))
+            
+        h=ds['h']; np.save('gom3.h.npy',np.array(h))
+        
+        lat=ds['lat']; np.save('gom3.lat.npy',np.array(lat))
+        lon=ds['lon']; np.save('gom3.lon.npy',np.array(lon))
+        latc=ds['latc']; np.save('gom3.latc.npy',np.array(latc))
+        lonc=ds['lonc']; np.save('gom3.lonc.npy',np.array(lonc))
+        
+        nbe=ds['nbe']; np.save('gom3.nbe.npy',np.array(nbe))
+        nbsn=ds['nbsn']; np.save('gom3.nbsn.npy',np.array(nbsn))
+        nbve=ds['nbve']; np.save('gom3.nbve.npy',np.array(nbve))
+        nn_hvc=ds['nn_hvc']; np.save('gom3.nn_hvc.npy',np.array(nn_hvc))
+        nprocs=ds['nprocs']; np.save('gom3.nprocs.npy',np.array(nprocs))
+        ntsn=ds['ntsn']; np.save('gom3.ntsn.npy',np.array(ntsn))
+        ntve=ds['ntve']; np.save('gom3.ntve.npy',np.array(ntve))
+        nv=ds['nv']; np.save('gom3.nv.npy',np.array(nv))
+        partition=ds['partition']; np.save('gom3.partition.npy',np.array(partition))
+        siglay=ds['siglay']; np.save('gom3.siglay.npy',np.array(siglay))
+        siglev=ds['siglev']; np.save('gom3.siglev.npy',np.array(siglev))
+        
+        x=ds['x']; np.save('gom3.x.npy',np.array(x))
+        xc=ds['xc']; np.save('gom3.xc.npy',np.array(xc))
+        y=ds['y']; np.save('gom3.y.npy',np.array(y))
+        yc=ds['yc']; np.save('gom3.yc.npy',np.array(yc))
+       
+        # the above vars are functions not arrays
+        """    
+        x=np.load('gom3.x.npy')
+        y=np.load('gom3.y.npy')
+        xc=np.load('gom3.xc.npy')
+        yc=np.load('gom3.yc.npy')
+        
+        lon=np.load('gom3.lon.npy')
+        lat=np.load('gom3.lat.npy')
+        lonc=np.load('gom3.lonc.npy')
+        latc=np.load('gom3.latc.npy')
+        """
+        # load vars from disk 
+        lat=np.load('gom3.lat.npy')
+        latc=np.load('gom3.latc.npy')
+        # precalculate Lame coefficients for the spherical coordinates
+        coslat=np.cos(lat*np.pi/180.)
+        coslatc=np.cos(latc*np.pi/180.)
+        
+        # In the following: kvf,kff,kvv,nvv,kfv,nfv 
+        # k indicates index (zero based), 
+        # n indicates the number of items
+        
+        #nv: Array of 32 bit Integers [three = 0..2][nele = 0..90414] 
+        #long_name: nodes surrounding element
+        #standard_name: face_node_connectivity
+        #start_index: 1
+        nv=np.load('gom3.nv.npy')
+        # vertices corresponding to a given face
+        kvf=nv-1 # convert from FORTRAN to python 0-based indexing
+        #nv-=1 # convert from FORTRAN to python 0-based indexing
+        #kvf=nv
+        
+        #nbe: Array of 32 bit Integers [three = 0..2][nele = 0..90414] 
+        # long_name: elements surrounding each element
+        nbe=np.load('gom3.nbe.npy')
+        # faces surrounding a given face
+        kff=nbe-1 # convert from FORTRAN to python 0-based indexing
+        #nbe-=1 # convert from FORTRAN to python 0-based indexing
+        #kff=nbe
+        
+        #nbsn: Array of 32 bit Integers [maxnode = 0..10][node = 0..48450]
+        #long_name: nodes surrounding each node
+         # list of nodes surrounding a given node, 1st and last entries identical to make a closed loop
+        nbsn=np.load('gom3.nbsn.npy')
+        # vertices surrounding a given vertex
+        kvv=nbsn-1 # convert from FORTRAN to python 0-based indexing
+        #nbsn-=1 # convert from FORTRAN to python 0-based indexing
+        #kvv=nbsn
+        
+        #ntsn: Array of 32 bit Integers [node = 0..48450]
+        #long_name: #nodes surrounding each node
+         # the number of nodes surrounding a given node + 1, because 1st and last entries identical to make a closed loop
+        ntsn=np.load('gom3.ntsn.npy')
+        # number of vertices surrounding a given vertex
+        #nvv=ntsn
+        nvv=ntsn-1 # remove the same node 
+        
+        #nbve: Array of 32 bit Integers [maxelem = 0..8][node = 0..48450] 
+        #long_name: elems surrounding each node
+        # list of elements surrounding a given node, 1st and last entries identical to make a closed loop
+        nbve=np.load('gom3.nbve.npy')
+        # faces surrounding a given vertex
+        kfv=nbve-1 # convert from FORTRAN to python 0-based indexing
+        #nbve-=1 # convert from FORTRAN to python 0-based indexing
+        #kfv=nbve
+        
+        #ntve: Array of 32 bit Integers [node = 0..48450] 
+        #long_name: #elems surrounding each node
+        # the number of elements surrounding a given node 
+        # (+ 1 not added, though 1st and last entries identical to make a closed loop
+        ntve=np.load('gom3.ntve.npy')
+        # number of faces surrounding a given vertex
+        #nfv=ntve
+        nfv=ntve # 
+        
+        
+        np.save('gom3.coslat.npy',coslat)
+        np.save('gom3.coslatc.npy',coslatc)
+        np.save('gom3.kvf.npy',kvf)
+        np.save('gom3.kff.npy',kff)
+        np.save('gom3.kvv.npy',kvv)
+        np.save('gom3.nvv.npy',nvv)
+        np.save('gom3.kfv.npy',kfv)
+        np.save('gom3.nfv.npy',nfv)
+
+        Grid={'x':x,'y':y,'xc':xc,'yc':yc,'lon':lon,'lat':lat,'lonc':lonc,'latc':latc,'coslat':coslat,'coslatc':coslatc,'h':h,'kvf':kvf,'kff':kff,'kvv':kvv,'nvv':nvv,'kfv':kfv,'nfv':nfv}
+    
+    else:
+        print 'get_fvcom_gom3_grid: unknown argument'
+    
+    return Grid
+
+
+
+  
+def getobs_drift_byrange(gbox,input_time):
+    """
+   Function written by Huanxin and used in "getdrifter_erddap.py"
+   get data from url, return id, latitude,longitude, and times
+   gbox includes 4 values, maxlon, minlon,maxlat,minlat, like:  [-69.0,-73.0,41.0,40.82]
+   input_time can either contain two values: start_time & end_time OR one  value:interval_days
+   and they should be timezone aware
+   example: input_time=[dt(2012,1,1,0,0,0,0,pytz.UTC),dt(2012,2,1,0,0,0,0,pytz.UTC)]
+   """
+    lon_max=gbox[0];lon_min=gbox[1];lat_max=gbox[2];lat_min=gbox[3]
+    mintime=input_time[0].strftime('%Y-%m-%d'+'T'+'%H:%M:%S'+'Z')  # change time format
+    maxtime=input_time[1].strftime('%Y-%m-%d'+'T'+'%H:%M:%S'+'Z')
+    # open url to get data
+    url='http://comet.nefsc.noaa.gov:8080/erddap/tabledap/drifters.csv?id&time>='\
+    +str(mintime)+'&time<='+str(maxtime)+'&latitude>='\
+    +str(lat_min)+'&latitude<='+str(lat_max)+'&longitude>='+str(lon_min)+'&longitude<='+str(lon_max)+'&orderBy("id")'
+    df=pd.read_csv(url,skiprows=[1])
+    ids=df.id.values
+    news_ids = []
+    for id in ids:
+        if id not in news_ids:
+            news_ids.append(id)
+
+
+    return news_ids
+
+
+def getobs_drift_byidrange(id,gbox,input_time):
+    """
+     Function written  by Huanxin and used by getdrifter_erddap.py
+     get data from url, return ids latitude,longitude, times
+     input_time can either contain two values: start_time & end_time OR one value:interval_days
+     and they should be timezone aware
+     example: input_time=[dt(2012,1,1,0,0,0,0,pytz.UTC),dt(2012,2,1,0,0,0,0,pytz.UTC)]
+     """
+    mintime=input_time[0].strftime('%Y-%m-%d'+'T'+'%H:%M:%S'+'Z')  # change time format
+    maxtime=input_time[1].strftime('%Y-%m-%d'+'T'+'%H:%M:%S'+'Z')   
+    lon_max=gbox[0];lon_min=gbox[1];lat_max=gbox[2];lat_min=gbox[3]
+    # open url to get data
+    url='http://comet.nefsc.noaa.gov:8080/erddap/tabledap/drifters.csv?id,time,latitude,longitude&time>='\
+    +str(mintime)+'&time<='+str(maxtime)+'&latitude>='+str(lat_min)+'&latitude<='+str(lat_max)+'&longitude>='\
+    +str(lon_min)+'&longitude<='+str(lon_max)+'&id="'+str(id)+'"&orderBy("id,time")'
+    #print url
+    df=pd.read_csv(url,skiprows=[1])
+    #print df,type(df)
+    #print 2
+    for k in range(len(df)):
+       df.time.values[k]=parse(df.time.values[k])
+    return df.time.values,df.id.values,df.longitude.values,df.latitude.values
+    
