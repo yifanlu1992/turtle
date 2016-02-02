@@ -502,11 +502,11 @@ class get_fvcom():
         lonk,latk = self.shrink_data(lon,lat,self.lons,self.lats,0.5)#1 day nodes(red)
         try:
             if self.modelname == "GOM3" or self.modelname == "30yr":
-                lonp,latp = self.nearest_point(lon, lat, lonl, latl,0.4)#elements(blue)
-                lonn,latn = self.nearest_point(lon,lat,lonk,latk,0.6)#nodes(red)
+                lonp,latp = self.nearest_point(lon, lat, lonl, latl,0.8)#elements(blue)
+                lonn,latn = self.nearest_point(lon,lat,lonk,latk,1.2)#nodes(red)
             if self.modelname == "massbay":
-                lonp,latp = self.nearest_point(lon, lat, lonl, latl,0.03)
-                lonn,latn = self.nearest_point(lon,lat,lonk,latk,0.05)        
+                lonp,latp = self.nearest_point(lon, lat, lonl, latl,0.06)
+                lonn,latn = self.nearest_point(lon,lat,lonk,latk,0.1)        
             index1 = np.where(self.lonc==lonp)
             index2 = np.where(self.latc==latp)
             elementindex = np.intersect1d(index1,index2)#nearest index elements(blue)
@@ -565,11 +565,11 @@ class get_fvcom():
             #if i!=(t-1):                
             try:
                 if self.modelname == "GOM3" or self.modelname == "30yr":
-                    lonp,latp = self.nearest_point(lon, lat, lonl, latl,0.4)
-                    lonn,latn = self.nearest_point(lon,lat,lonk,latk,0.6)
+                    lonp,latp = self.nearest_point(lon, lat, lonl, latl,0.8)
+                    lonn,latn = self.nearest_point(lon,lat,lonk,latk,1.2)
                 if self.modelname == "massbay":
-                    lonp,latp = self.nearest_point(lon, lat, lonl, latl,0.03)
-                    lonn,latn = self.nearest_point(lon,lat,lonk,latk,0.05)
+                    lonp,latp = self.nearest_point(lon, lat, lonl, latl,0.06)
+                    lonn,latn = self.nearest_point(lon,lat,lonk,latk,0.1)
                 index1 = np.where(self.lonc==lonp)
                 index2 = np.where(self.latc==latp)
                 elementindex = np.intersect1d(index1,index2); #print 'elementindex',elementindex
@@ -605,7 +605,7 @@ class get_roms():
     def __init__(self):
         pass
     
-    def nearest_point(self, lon, lat, lons, lats, length=0.1):  #0.3/5==0.06
+    def nearest_point(self, lon, lat, lons, lats, length=0.06):  #0.3/5==0.06
         '''Find the nearest point to (lon,lat) from (lons,lats),
            return the nearest-point (lon,lat)
            author: Bingwei'''
@@ -864,6 +864,32 @@ def cpdrtime(drtime,pointlon,pointlat,pointtime):
         npmodeltime.append(npmotime)#model right data
     #print npmodellon,npmodellat,npmodeltime
     return  npmodellon,npmodellat,npmodeltime
+def cpmotime(drtime,pointlon,pointlat,pointtime):
+    '''compare to the model time get the drifter same time data'''
+    npmotime=[]
+    npmolon=[]
+    npmolat=[]
+    npmodellon=[]
+    npmodellat=[]
+    npmodeltime=[]
+    npdrtimes = np.array(drtime)
+    npmolons = np.array(pointlon)
+    npmolats = np.array(pointlat)
+    npmotimes = np.array(pointtime)
+    #print npdrtimes,npmotimes
+    for i in npdrtimes:
+        md=npmotimes-i
+        #print md
+        index = np.argmin(abs(md))
+        #print md
+        npmotime=npmotimes[index]
+        npmolon=npmolons[index]    
+        npmolat=npmolats[index]
+        npmodellon.append(npmolon)
+        npmodellat.append(npmolat)
+        npmodeltime.append(npmotime)#model right data
+    #print npmodellon,npmodellat,npmodeltime
+    return  npmodellon,npmodellat,npmodeltime
     
 def haversine(lon1, lat1, lon2, lat2): 
     """ 
@@ -931,33 +957,33 @@ def calculate_SD(model_points,dmlon,dmlat,drtime):
     '''compare the model_points and drifter point(time same as model point)'''
     meandis=[];
     dis=dict(dis=[],time=[])
-    #print model_points
+    #print model_points,dmlon
     for a in range(len(model_points['lon'])):
         dd=[]
-        for j in range(len(model_points['lon'][a])):
-            d=haversine(model_points['lon'][a][j],model_points['lat'][a][j],dmlon[a][j],dmlat[a][j])#Calculate the distance between two points 
-            #print model_points['lon'][a][j],model_points['lat'][a][j],dmlon[a][j],dmlat[a][j],d           
-            if d!=0:  
-                distance=[]
-                b=(drtime[a][j]-drtime[a][0]).seconds/60
-                #print drtime[a][j],drtime[a][0]
-                if (drtime[a][j]-drtime[a][0]).days==1:
-                    b=1440
-                    distance=d/b
-                elif drtime[a][j]==drtime[a][0] and (drtime[a][0]-drtime[a-1][0]).seconds!=0:                   
-                    distance=0
-                else:
-                    distance=d/b
-                     
-                dd.append(distance*1440)
+        #for j in range(len(model_points['lon'][a])):
+        d=haversine(model_points['lon'][a],model_points['lat'][a],dmlon[a],dmlat[a])#Calculate the distance between two points 
+        #print model_points['lon'][a][j],model_points['lat'][a][j],dmlon[a][j],dmlat[a][j],d           
+        if d!=0:  
+            distance=[]
+            b=(drtime[a]-drtime[0]).seconds/60
+            #print drtime[a][j],drtime[a][0]
+            if (drtime[a]-drtime[0]).days==1:
+                b=1440
+                distance=d/b
+            #elif drtime[a]==drtime[0] and (drtime[0]-drtime[a-1][0]).seconds!=0:                   
+                #distance=0'''
             else:
-                dd.append(d)
-            #print dd
-        dis['dis'].append(dd)
+                distance=d/b
+                 
+            dd.append(distance*1440)
+        else:
+            dd.append(d)
+        #print dd
+        dis['dis'].extend(dd)
         #print dis['dis']
-        meansd=np.mean(dis['dis'][a])
-        if meansd!=0:
-            meandis.append(meansd)
+    meansd=np.mean(dis['dis'][a])
+    if meansd!=0:
+        meandis.append(meansd)
     return dis['dis'],meandis
 def timedeal(time):
     span=[]
@@ -966,6 +992,7 @@ def timedeal(time):
     span_time=min(span)/60
     return span_time
 def dealdrpoint(start_time,days,lons,lats,times):
+    ''''''
     cprtime=[];npdrdellon=[];npdrdellat=[];npdrdeltime=[]
     cprstime=start_time.replace(minute=0)
     cpretime=cprstime+timedelta(days=days)
