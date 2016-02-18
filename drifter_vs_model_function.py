@@ -14,6 +14,7 @@ import math
 import pandas as pd
 from datetime import datetime, timedelta
 from math import radians, cos, sin, atan, sqrt  
+from matplotlib.dates import date2num,num2date
 ######## function ##########
 def getrawdrift(did,filename):
    '''
@@ -60,7 +61,7 @@ def __cmptime(time, times):
     index = tdelta.index(min(tdelta))
     
     return index
-def get_drifter_track(method_of_drifter,start_time, days,drifter_ID,id):
+def get_drifter_track(method_of_drifter,start_time, days,drifter_ID):  
     dr_points=dict(lon=[],lat=[],time=[]) 
     drifter_points = dict(lon=[],lat=[],time=[])
     if method_of_drifter=='raw':
@@ -73,6 +74,7 @@ def get_drifter_track(method_of_drifter,start_time, days,drifter_ID,id):
         dr_points = get_drifter_csv(starttime,drifter_ID,days)
         drifter_points['time'].extend(dr_points['time'])
     if method_of_drifter=='oracle':
+        id=drifter_ID
         ids=id
         dr_points['time'],dr_points['lat'],dr_points['lon'] = get_drifter_oracle(id,start_time,days)
         for w in range(len(dr_points['time'])):       
@@ -82,7 +84,39 @@ def get_drifter_track(method_of_drifter,start_time, days,drifter_ID,id):
             drifter_points['time'].append(times)  
             #print drifter_points['time']
         dr_points['lon'].tolist;dr_points['lat'].tolist
+    if method_of_drifter=='npy':
+        ids=drifter_ID
+        dr_points = get_drifter_npy(start_time,days,drifter_ID)
+        #print dr_points
+        drifter_points['time'].extend(dr_points['time'])
     return dr_points,ids,drifter_points['time']
+def get_drifter_npy(starttime, days,drifterID):  
+    '''return drifter_points lon lat time
+    get from vitalii step 2'''
+    drpoints=dict(lon=[],lat=[],time=[])
+    source='driftfvcom_data2/'
+    filename='ID_%s.npz' %drifterID
+    #print filename
+    drfile=source+filename
+    Z=np.load(drfile)
+    sttime=date2num(starttime)
+    endtime=date2num(starttime+timedelta(days))
+    times=np.array(Z['tdh'])
+    #print times,sttime,endtime
+    #tdh days since 0001-00-00 00:00:00, GMT 
+    lons=np.array(Z['londh'])
+    lats=np.array(Z['latdh'])
+    sindex = np.argmin(abs(sttime-times))
+    eindex = np.argmin(abs(endtime-times))
+    #print sindex,eindex
+    for i in times[sindex:eindex]:
+        a=num2date(i)
+        b=a.replace(tzinfo=None)
+        drpoints['time'].append(b)
+    drpoints['lon']=lons[sindex:eindex]
+    drpoints['lat']=lats[sindex:eindex]
+    #print drpoints
+    return drpoints
 def get_drifter_raw(starttime, days,drifterID):
     '''
         return drifter nodes
@@ -757,13 +791,14 @@ class get_roms():
             indexv = np.where(self.lon_v==lonvp)
             indexr = np.where(self.lon_rho==lonrp)
             
-            if not self.mask_u[indexu]:
-                print 'No u velocity.'
-                raise Exception()
+            #print lonrp,latrp,lonup,latup,lonvp,latvp
+            #print nodes
             if not self.mask_v[indexv]:
-                print 'No v velocity'
+                print 'No v velocity1'
                 raise Exception()
-                
+            if not self.mask_u[indexu]:
+                print 'No u velocity.1'
+                raise Exception()    
             waterdepth = self.h[indexr]+self.zeta[0][indexr][0]
             nodes['time'].append(self.mTime[0])
             if waterdepth<(abs(depth)): 
@@ -805,11 +840,12 @@ class get_roms():
                 indexr = np.where(self.lon_rho==lonrp) #index6 = np.where(lat_rho==latrp)
                 #indexu = np.intersect1d(index1,index2); #print indexu
                 if not self.mask_u[indexu]:
-                    print 'No u velocity.'
+                    print 'No u velocity.2'
+                    
                     raise Exception()
                 #indexv = np.intersect1d(index3,index4); #print indexv
                 if not self.mask_v[indexv]:
-                    print 'No v velocity'
+                    print 'No v velocity2'
                     raise Exception()
                 #indexr = np.intersect1d(index5,index6);
                 
@@ -824,7 +860,7 @@ class get_roms():
             except:
                 #print 'loop problem.'
                 return nodes
-            
+        #print nodes   
         return nodes      
 def model_start_point(time,starttime,drlon,drlat):
     '''get the model everyday restart point
@@ -840,6 +876,7 @@ def model_start_point(time,starttime,drlon,drlat):
     
 def cpdrtime(drtime,pointlon,pointlat,pointtime):
     '''compare to the drifter time get the model same time data'''
+    #print pointlon,pointlat,pointtime
     npmotime=[]
     npmolon=[]
     npmolat=[]
@@ -862,7 +899,7 @@ def cpdrtime(drtime,pointlon,pointlat,pointtime):
         npmodellon.append(npmolon)
         npmodellat.append(npmolat)
         npmodeltime.append(npmotime)#model right data
-    #print npmodellon,npmodellat,npmodeltime
+        #print npmodellon,npmodellat,npmodeltime
     return  npmodellon,npmodellat,npmodeltime
 def cpmotime(drtime,pointlon,pointlat,pointtime):
     '''compare to the model time get the drifter same time data'''
@@ -897,13 +934,15 @@ def haversine(lon1, lat1, lon2, lat2):
     on the earth (specified in decimal degrees) 
     """   
     lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])  
-  
+    #print 34
     dlon = lon2 - lon1   
     dlat = lat2 - lat1   
     a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2  
     c = 2 * atan(sqrt(a)/sqrt(1-a))   
     r = 6371 
-    return c * r
+    d=c * r
+    #print type(d)
+    return d
 '''def timedeal(time):   
     out_time=[]
     for t in range(len(time)):
@@ -953,16 +992,20 @@ def haversine(lon1, lat1, lon2, lat2):
             print "bad data"
     return dis'''
     
-def calculate_SD(model_points,dmlon,dmlat,drtime):
+def calculate_SD(modelpoints,dmlon,dmlat,drtime):
     '''compare the model_points and drifter point(time same as model point)'''
-    meandis=[];
+    meandis=[];dist=[]
+    #print 1
     dis=dict(dis=[],time=[])
-    #print model_points,dmlon
-    for a in range(len(model_points['lon'])):
+    #print 2
+    for a in range(len(modelpoints['lon'])):
+        #print 3
         dd=[]
-        #for j in range(len(model_points['lon'][a])):
-        d=haversine(model_points['lon'][a],model_points['lat'][a],dmlon[a],dmlat[a])#Calculate the distance between two points 
+        #print 12
+        d=haversine(modelpoints['lon'][a],modelpoints['lat'][a],dmlon[a],dmlat[a])#Calculate the distance between two points 
         #print model_points['lon'][a][j],model_points['lat'][a][j],dmlon[a][j],dmlat[a][j],d           
+        dist.append(d)  
+        
         if d!=0:  
             distance=[]
             b=(drtime[a]-drtime[0]).seconds/60
@@ -981,10 +1024,11 @@ def calculate_SD(model_points,dmlon,dmlat,drtime):
         #print dd
         dis['dis'].extend(dd)
         #print dis['dis']
-    meansd=np.mean(dis['dis'][a])
+    meansd=np.mean(dis['dis'])
     if meansd!=0:
         meandis.append(meansd)
-    return dis['dis'],meandis
+    #print dist
+    return dist,meandis
 def timedeal(time):
     span=[]
     for i in range(len(time)-1):
