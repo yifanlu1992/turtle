@@ -74,15 +74,27 @@ def get_drifter_track(method_of_drifter,start_time, days,drifter_ID):
         dr_points = get_drifter_csv(starttime,drifter_ID,days)
         drifter_points['time'].extend(dr_points['time'])
     if method_of_drifter=='oracle':
+        dr_point=dict(lon=[],lat=[],time=[]) 
+        drtime=[]
         id=drifter_ID
         ids=id
-        dr_points['time'],dr_points['lat'],dr_points['lon'] = get_drifter_oracle(id,start_time,days)
-        for w in range(len(dr_points['time'])):       
+        dr_point['time'],dr_point['lat'],dr_point['lon'] = get_drifter_oracle(id,start_time,days+1)
+        #print dr_points['time']        
+        for w in range(len(dr_point['time'])):       
             times=[]       
-            times=dr_points['time'][w].replace(tzinfo=None)
+            times=dr_point['time'][w].replace(tzinfo=None)
+            time=times-timedelta(hours=4)
             #print times
-            drifter_points['time'].append(times)  
-            #print drifter_points['time']
+            drtime.append(time)  
+        drtimenp = np.array(drtime)
+        #print drtimenp
+
+        dst = drtimenp-start_time; dstindex = np.argmin(abs(dst))
+        det = drtimenp-(start_time+timedelta(days)); detindex = np.argmin(abs(det))#every compare days drifter end index
+        #print dstindex,detindex
+        dr_points['lon']=dr_point['lon'][dstindex:detindex];dr_points['lat']=dr_point['lat'][dstindex:detindex]
+        drifter_points['time']=drtime[dstindex:detindex]        
+        #print drifter_points['time'],dr_points
         dr_points['lon'].tolist;dr_points['lat'].tolist
     if method_of_drifter=='npy':
         ids=drifter_ID
@@ -108,7 +120,7 @@ def get_drifter_npy(starttime, days,drifterID):
     lats=np.array(Z['latdh'])
     sindex = np.argmin(abs(sttime-times))
     eindex = np.argmin(abs(endtime-times))
-    #print sindex,eindex
+    #print times[sindex:eindex]
     for i in times[sindex:eindex]:
         a=num2date(i)
         b=a.replace(tzinfo=None)
@@ -167,6 +179,7 @@ def get_drifter_oracle(id,start_time,days):
         #print df.time[k]
         df.time[k]=parse(df.time[k][:-1])
     df=df[df.longitude <=-20]
+    #print df.time.values
     return df.time.values,df.latitude.values,df.longitude.values
     
 
@@ -356,7 +369,7 @@ class get_fvcom():
             t2 = (endtime - datetime(1858,11,17)).total_seconds()/86400
             if not mtime[0]<t1<mtime[-1] or not mtime[0]<t2<mtime[-1]:
                 #print 'Time: Error! Model(massbay) only works between %s with %s(UTC).'%(mstt,mett)
-                print 'Time: Error! Model(massbay) only works between 1978-1-1 with 2014-1-1(UTC).'
+                print 'Time: Error! Model(30yr) only works between 1978-1-1 with 2014-1-1(UTC).'
                 raise Exception()
             
             tm1 = mtime-t1; #tm2 = mtime-t2
@@ -994,9 +1007,9 @@ def haversine(lon1, lat1, lon2, lat2):
     
 def calculate_SD(modelpoints,dmlon,dmlat,drtime):
     '''compare the model_points and drifter point(time same as model point)'''
-    meandis=[];dist=[]
+    dist=[];meandisdis=[];disdist=[]
     #print 1
-    dis=dict(dis=[],time=[])
+    dis=dict(dis=[])
     #print 2
     for a in range(len(modelpoints['lon'])):
         #print 3
@@ -1004,39 +1017,47 @@ def calculate_SD(modelpoints,dmlon,dmlat,drtime):
         #print 12
         d=haversine(modelpoints['lon'][a],modelpoints['lat'][a],dmlon[a],dmlat[a])#Calculate the distance between two points 
         #print model_points['lon'][a][j],model_points['lat'][a][j],dmlon[a][j],dmlat[a][j],d           
-        dist.append(d)  
-        
+        l=haversine(modelpoints['lon'][a],modelpoints['lat'][a],modelpoints['lon'][0],modelpoints['lat'][0])
+        dist.append(d) 
+        if l==0:
+            disdist.append(0)
+        else:
+            disdis=d/l
+            disdist.append(disdis)
         if d!=0:  
             distance=[]
             b=(drtime[a]-drtime[0]).seconds/60
-            #print drtime[a][j],drtime[a][0]
+            #print b,drtime[a],drtime[0]
             if (drtime[a]-drtime[0]).days==1:
-                b=1440
+                b=1440 #minutes per day
                 distance=d/b
             #elif drtime[a]==drtime[0] and (drtime[0]-drtime[a-1][0]).seconds!=0:                   
                 #distance=0'''
             else:
                 distance=d/b
                  
-            dd.append(distance*1440)
+            dd.append(distance*1440) #kmperday
         else:
             dd.append(d)
         #print dd
         dis['dis'].extend(dd)
         #print dis['dis']
-    meansd=np.mean(dis['dis'])
-    if meansd!=0:
-        meandis.append(meansd)
+    meansd=np.mean(dis['dis']) # mean separation rate for this day
+    meandisdis=np.mean(disdist) 
+    '''if meansd!=0:
+        meantimedis.append(meansd)'''
     #print dist
-    return dist,meandis
+    return dist,meansd,meandisdis
 def timedeal(time):
+    '''
+    min different time between two near point '''
     span=[]
     for i in range(len(time)-1):
         span.append((time[i+1]-time[i]).seconds)
-    span_time=min(span)/60
+    span_time=np.mean(span)/60
     return span_time
 def dealdrpoint(start_time,days,lons,lats,times):
-    ''''''
+    '''get drifter data nearest "on the hour" to be the same as the model'''
     cprtime=[];npdrdellon=[];npdrdellat=[];npdrdeltime=[]
     cprstime=start_time.replace(minute=0)
     cpretime=cprstime+timedelta(days=days)
