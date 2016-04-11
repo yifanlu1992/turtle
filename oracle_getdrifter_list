@@ -4,7 +4,7 @@
 Created on Fri Jan 15 12:30:03 2016
 make a list about drifter ID, start time,days, min ,max,mean 
 
-information from oracle website 
+information from erddap website 
 
 do first choose include 30yr roms or both in those two 
 
@@ -12,41 +12,48 @@ do first choose include 30yr roms or both in those two
 """
 
 import csv
+from datetime import datetime
 import datetime as dt
 import pytz
 import numpy as np
 from matplotlib.path import Path
-from oracle_getdrifter_list_function import getobs_drift_byrange,get_fvcom_gom3_grid,getobs_drift_byidrange,ingom3
+from erddap_getdrifter_list_function import getobs_drift_byrange,get_fvcom_gom3_grid,getobs_drift_byidrange,ingom3
 ####hard code###
-model='30yr'#'30yr' 'roms' 'both'
-
+model='both'#'30yr' 'roms' 'both'
+gbox=[-66,-68,42,41]
+depth='=-1'#'=-1'/'=-15'/'<-1'
+minday=10#the track must long than minday
+meantime=1.2#the track mean different time less than meantime
 #########code#####
 if model =='30yr':
-    input_time=[dt.datetime(1988,10,11,0,0,0,0,pytz.UTC),dt.datetime(2015,1,1,0,0,0,0,pytz.UTC)] # start time and end time
+    input_time=[dt.datetime(1988,10,11,0,0,0,0,pytz.UTC),dt.datetime(2014,1,1,0,0,0,0,pytz.UTC)] # start time and end time
     gbox=[-57,-76,46,35]
-    filename='oracle_drifter_list_30yr.csv'
+    filename='erddap_drifter_list_30yr.csv'
 elif model=='roms':
     input_time=[dt.datetime(2009,10,11,0,0,0,0,pytz.UTC),dt.datetime(2016,1,1,0,0,0,0,pytz.UTC)] # start time and end time
     gbox=[-67,-80,43,33]
-    filename='oracle_drifter_list_roms.csv'
+    filename='erddap_drifter_list_roms.csv'
 elif model=='both':
-    input_time=[dt.datetime(2009,10,11,0,0,0,0,pytz.UTC),dt.datetime(2015,1,1,0,0,0,0,pytz.UTC)] # start time and end time
+    input_time=[dt.datetime(2009,10,11,0,0,0,0,pytz.UTC),dt.datetime(2014,1,1,0,0,0,0,pytz.UTC)] # start time and end time
     gbox=[-67,-75,43,35]
-    filename='oracle_drifter_list_both.csv'
+    filename='erddap_drifter_list_both.csv'
+elif model=='':
+    input_time=[dt.datetime(2009,10,11,0,0,0,0,pytz.UTC),dt.datetime(2016,1,1,0,0,0,0,pytz.UTC)]
+    filename='erddap_drifter_list.csv'
 
  
 drifter_data=[]
-drifter=dict(ids=[],time=[],lon=[],lat=[])    
+drifter=dict(ids=[],time=[],lon=[],lat=[],depth=[])    
 #drifters=dict(ids=[],start_time=[],end_time=[],days=[])    
 
-ids=getobs_drift_byrange(gbox,input_time)
+ids=getobs_drift_byrange(gbox,input_time,depth)
 #print ids
 '''listid.extend(ids)
     for q in listid:
         if q not in idlist:
             idlist.append(q)'''
 print len(ids)
-ID=[];days=[];starttime=[];means=[];maxs=[];mins=[]
+ID=[];days=[];starttime=[];means=[];maxs=[];mins=[];depths=[]
 #print ids
 for i in range(len(ids)):
     timelist=[]
@@ -54,8 +61,8 @@ for i in range(len(ids)):
     print ids[i]
     drtime=[]
 
-    drifter['time'],drifter['ids'],drifter['lon'],drifter['lat']=getobs_drift_byidrange(ids[i],gbox,input_time)
-    #print idlist[i],gbox[g],input_time
+    drifter=getobs_drift_byidrange(ids[i],gbox,input_time,depth)
+    #print drifter['depth']
     '''try:     
         drifter['time'],drifter['ids'],drifter['lon'],drifter['lat']=getobs_drift_byidrange(ids[i],gbox,input_time)
         
@@ -95,10 +102,9 @@ for i in range(len(ids)):
             day=(drtime[r]-drtime[st]).days
             #print 1,ids[i],day,np.max(span_time[st:r])/3600,np.mean(span_time[st:r])/3600
             #print days
-            if day>=10 and np.mean(span_time[st:r])/3600<=1.2:
+            if day>=minday and np.mean(span_time[st:r])/3600<=meantime:
                 #print 1
                 ID.append(ids[i])
-
                 starttime.append(drtime[st])
                 days.append(day)
                 time=drtime[st:r]
@@ -106,6 +112,7 @@ for i in range(len(ids)):
                 means.append("%.2f" %(np.mean(span_time[st:r])/float(3600)))
                 mins.append("%.2f" %(np.min(span_time[st:r])/float(3600)))
                 maxs.append("%.2f" %(np.max(span_time[st:r])/float(3600)))
+                depths.append(drifter['depth'][0])
             st=r+1
             continue
         elif  r==(len(drtime)-2):
@@ -114,7 +121,7 @@ for i in range(len(ids)):
             day=(drtime[r]-drtime[st]).days
             time=drtime[st:r]
             #print days
-            if day>=10 and np.mean(span_time[st:r])/3600<=1.2:
+            if day>=minday and np.mean(span_time[st:r])/3600<=meantime:
                # print 3
                 ID.append(ids[i])
                 starttime.append(drtime[st])
@@ -124,6 +131,7 @@ for i in range(len(ids)):
                 means.append("%.2f" %(np.mean(span_time[st:r])/float(3600)))
                 mins.append("%.2f" %(np.min(span_time[st:r])/float(3600)))
                 maxs.append("%.2f" %(np.max(span_time[st:r])/float(3600)))
+                depths.append(drifter['depth'][0])
     #print means,maxs,mins
     '''for a in range(len(drifter['time'])-1):
         time=drifter['time'][a+1]-drifter['time'][a]
@@ -137,12 +145,13 @@ drifter_data.append(days)
 drifter_data.append(means)
 drifter_data.append(maxs)
 drifter_data.append(mins)
+drifter_data.append(depths)
 #print drifter_data
 dr=map(list, zip(*drifter_data))
 
 ###make a list
 csvfile = file(filename, 'wb')
 writer = csv.writer(csvfile)
-writer.writerow(['ids', 'start_time', 'days','mean','max','min'])
+writer.writerow(['ids', 'start_time', 'days','mean','max','min','depth'])
 writer.writerows(dr)
 csvfile.close() 
