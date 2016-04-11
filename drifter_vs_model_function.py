@@ -214,6 +214,60 @@ def get_drifter_csv(start_time,drifter_ID,days):
     else:
         print 'I need the days'
     return nodes
+    
+def drifterhr(dr_points,days):
+    '''get drifter data on the hour'''
+    #print dr_points
+    drifter_points_hr = dict(ids=[],lat_hr=[],h_hr=[],lon_hr=[],lon=[],lat=[],time=[],distance=[])
+    cprtime=[];
+    #print dr_points['time']
+    cprstime=dr_points['time'][0].replace(minute=0)+timedelta(hours=1)
+    cpretime=cprstime+timedelta(days=days)
+    for i in range((cpretime-cprstime).days*24):
+        cprtime.append(cprstime+timedelta(hours=i))
+    drifter_points_hr['h_hr'] = np.array(cprtime)
+    '''npdrlons = np.array(dr_points['lon'])
+    npdrlats = np.array(dr_points['lat'])'''
+    npdrtimes = np.array(dr_points['time'])
+    for i in drifter_points_hr['h_hr']:
+        td=npdrtimes-i
+        index = np.argmin(abs(td))
+        #print npdrtimes[index],i
+        if npdrtimes[index]>i:
+            erindex=index-1
+            laindex=index
+        else:
+            erindex=index
+            laindex=index+1
+
+        if (npdrtimes[laindex]-npdrtimes[erindex]).seconds==0:
+            #print i,npdrtimes[erindex],npdrtimes[laindex+1],(npdrtimes[laindex+1]-npdrtimes[erindex]).seconds
+            hrlon=dr_points['lon'][erindex]+float((i-npdrtimes[erindex]).seconds)/(npdrtimes[laindex+1]-npdrtimes[erindex]).seconds*(dr_points['lon'][laindex+1]-dr_points['lon'][erindex])
+            hrlat=dr_points['lat'][erindex]+float((i-npdrtimes[erindex]).seconds)/(npdrtimes[laindex+1]-npdrtimes[erindex]).seconds*(dr_points['lat'][laindex+1]-dr_points['lat'][erindex])
+        else:
+            hrlon=dr_points['lon'][erindex]+float((i-npdrtimes[erindex]).seconds)/(npdrtimes[laindex]-npdrtimes[erindex]).seconds*(dr_points['lon'][laindex]-dr_points['lon'][erindex])
+            hrlat=dr_points['lat'][erindex]+float((i-npdrtimes[erindex]).seconds)/(npdrtimes[laindex]-npdrtimes[erindex]).seconds*(dr_points['lat'][laindex]-dr_points['lat'][erindex])
+        drifter_points_hr['lon_hr'].append(hrlon);
+        drifter_points_hr['lat_hr'].append(hrlat)
+        #print dr_points['lon'][erindex],dr_points['lon'][laindex],hrlon
+
+
+    drifter_points_hr['lat']=dr_points['lat']
+    drifter_points_hr['lon']=dr_points['lon']
+    drifter_points_hr['time']=dr_points['time']
+    drifter_points_hr['ids']=dr_points['ids']
+
+    
+    '''npdrtime=npdrtimes[index]
+    npdrlon=npdrlons[index]    
+    npdrlat=npdrlats[index]
+    npdrdellon.append(npdrlon)
+    npdrdellat.append(npdrlat)
+    npdrdeltime.append(npdrtime)'''
+
+    #print drifter_points_hr,len(drifter_points_hr['time']),len(drifter_points_hr['lon']),len(drifter_points_hr['lon_hr'])
+    return drifter_points_hr
+    
 #######################model track###
 def dm2dd(lat,lon):
     """
@@ -540,8 +594,54 @@ class get_fvcom():
             b = b/t
                
         return a, b
+
+
+    def nearpoint_index(self,lat,lon):
+        dists=[];points=[]
+        url_wind="""http://www.smast.umassd.edu:8080/thredds/dodsC/models/fvcom/NECOFS/Archive/meteorology_v1/m_forcing_2011.nc?XLAT[0:1:140][0:1:182],XLONG[0:1:140][0:1:182]"""  #%(year,ftime,stime,lats,lats,lons,lons)
+        vdata=get_nc_data(url_wind,'XLAT','XLONG')
+        LAT=vdata['XLAT'][:];LON=vdata['XLONG'][:]
+        for a in range(140):#have 141 group data
+            #print max(LAT[a]), min(LAT[a]) ,max(LON[a]) ,min(LON[a])
+            if lat<max(LAT[a]) and lat>min(LAT[a]) and lon<max(LON[a]) and lon>min(LON[a]):
+                #print a
+                for o in range(182):#every group have 182 data
+                    if lon-0.1<LON[a][o]<lon+0.1 and lat-0.1<LAT[a][o]<lat+0.1:
+                        #print a,o,LON[a][o],LAT[a][o]
+                        points.append((a,o))
+                        dist=haversine(LON[a][o],LAT[a][o],lon,lat)
+                        dists.append(dist)
+        #print dists,points
+        if len(dists)>1:
+            for i in range(len(dists)):
+                if dists[i]-min(dists)==0:
+                    index=i
+        else :
+            index=0
+        #print  points[i]
+        return points[index]
+            
+    def get_wind_fvcom(self,starttime,lat,lon):
+        #print starttime
+        year=starttime.year
+        index=self.nearpoint_index(lat,lon)
+
+        cptime="%i,01,01,00,00"  %year
+        cptimes=datetime.strptime(cptime, '%Y,%m,%d,%H,%M')
+        time_s=(starttime-cptimes).total_seconds()
+        timeindex=int(time_s/60/60)
+
+
+        url_wind="""http://www.smast.umassd.edu:8080/thredds/dodsC/models/fvcom/NECOFS/Archive/meteorology_v1/m_forcing_%s.nc?U10[%i:1:%i][%i:1:%i][%i:1:%i],V10[%i:1:%i][%i:1:%i][%i:1:%i]"""  %(year,timeindex,timeindex,index[0],index[0],index[1],index[1],timeindex,timeindex,index[0],index[0],index[1],index[1])
+        data=get_nc_data(url_wind,'V10','U10')
+        self.v_wind=data['V10'][:];self.u_wind=data['U10'][:]
+        #print self.v_wind,self.u_wind
+       
+        #print vwind
+        #print self.v_wind[0][0][0],self.u_wind[0][0][0]
+        return self.v_wind,self.u_wind
         
-    def get_wind(self,starttime,lat,lon):
+    def get_wind_ncep(self,starttime,lat,lon):
         year=starttime.year
         #print starttime
         lats=(lat-18)/0.1875
@@ -579,7 +679,7 @@ class get_fvcom():
         #print self.v_wind[0][0][0],self.u_wind[0][0][0]
         return vwind,uwind
         
-    def get_track(self,lon,lat,depth,starttime): #,b_index,nvdepth, 
+    def get_track(self,lon,lat,depth,starttime,wind,wind_get_type): #,b_index,nvdepth, 
         '''
         Get forecast points start at lon,lat
         '''
@@ -596,16 +696,18 @@ class get_fvcom():
             if self.modelname == "GOM3" or self.modelname == "30yr":
                 lonp,latp = self.nearest_point(lon, lat, lonl, latl,0.8)#elements(blue)
                 lonn,latn = self.nearest_point(lon,lat,lonk,latk,1.2)#nodes(red)
+                
             if self.modelname == "massbay":
                 lonp,latp = self.nearest_point(lon, lat, lonl, latl,0.06)
-                lonn,latn = self.nearest_point(lon,lat,lonk,latk,0.1)        
+                lonn,latn = self.nearest_point(lon,lat,lonk,latk,0.1)    
             index1 = np.where(self.lonc==lonp)
             index2 = np.where(self.latc==latp)
             elementindex = np.intersect1d(index1,index2)#nearest index elements(blue)
             index3 = np.where(self.lons==lonn)
             index4 = np.where(self.lats==latn)
             nodeindex = np.intersect1d(index3,index4)#nearest index nodes(red)
-  
+            
+            
             pa = self.eline_path(lon,lat)# boundary 
 
             if self.modelname == "30yr":
@@ -616,35 +718,47 @@ class get_fvcom():
             depth_total = self.siglay[:,nodeindex]*waterdepth; #print 'Here one' 
             layer = np.argmin(abs(depth_total+depth)); #print 'layer',layer
             modpts['layer'].append(layer); 
+            
             if waterdepth<(abs(depth)): 
                 print 'This point is too shallow.Less than %d meter.'%abs(depth)
                 raise Exception()
         except:
+            #print 12345
             return modpts
             
         t = abs(self.hours)         
-        for i in xrange(t):            
+        for i in xrange(t):  
+            #print i
             if i!=0 and i%24==0 :
                 #print 'layer,lon,lat,i',layer,lon,lat,i
                 lonl,latl = self.shrink_data(lon,lat,self.lonc,self.latc,0.5)
                 lonk,latk = self.shrink_data(lon,lat,self.lons,self.lats,0.5)
             u_t1 = self.u[i,layer,elementindex][0]; v_t1 = self.v[i,layer,elementindex][0]
             u_t2 = self.u[i+1,layer,elementindex][0]; v_t2 = self.v[i+1,layer,elementindex][0]
-            u_t,v_t = self.uvt(u_t1,v_t1,u_t2,v_t2)
+            u_t = (u_t1+u_t2)/2; v_t = (v_t1+v_t2)/2
+            #u_t,v_t = self.uvt(u_t1,v_t1,u_t2,v_t2)
+
             starttimes=starttime+timedelta(hours=i)
-            v_wind,u_wind=self.get_wind(starttimes,lat,lon)
+            if wind==0:
+                dx = 60*60*u_t; dy = 60*60*v_t
+            else:
+                if wind_get_type=='NCEP':
+                    v_wind,u_wind=self.get_wind_ncep(starttimes,lat,lon)
+                if wind_get_type=='FVCOM':
+                    v_wind,u_wind=self.get_wind_fvcom(starttimes,lat,lon)
+
+                dx = 60*60*u_t+60*60*u_wind[0][0][0]*wind; dy = 60*60*v_t+60*60*v_wind[0][0][0]*wind
+
             #u_t = (u_t1+u_t2)/2; v_t = (v_t1+v_t2)/2
             '''if u_t==0 and v_t==0: #There is no water
                 print 'Sorry, hits the land,u,v==0'
                 return modpts,1 #'''
-            #print "u[i,layer,elementindex]",u[i,layer,elementindex]
-            dx = 60*60*u_t+60*60*u_wind*0.005; dy = 60*60*v_t+60*60*v_wind*0.005
             #mapx = Basemap(projection='ortho',lat_0=lat,lon_0=lon,resolution='l')                        
             #x,y = mapx(lon,lat)
             #temlon,temlat = mapx(x+dx,y+dy,inverse=True)            
             temlon = lon + (dx/(111111*np.cos(lat*np.pi/180)))#convert decimal to degree
             temlat = lat + dy/111111 #'''
-            
+
             #print '%d,lat,lon,layer'%(i+1),temlat,temlon,layer
             #########case for boundary 1 #############
             if pa:
@@ -653,7 +767,7 @@ class get_fvcom():
                 if pa.intersects_path(tempa): 
                     print 'Sorry, point hits land here.path'
                     return modpts#'''
-                
+
 
             lon = temlon; lat = temlat
             #if i!=(t-1):                
@@ -661,6 +775,7 @@ class get_fvcom():
                 if self.modelname == "GOM3" or self.modelname == "30yr":
                     lonp,latp = self.nearest_point(lon, lat, lonl, latl,0.8)
                     lonn,latn = self.nearest_point(lon,lat,lonk,latk,1.2)
+
                 if self.modelname == "massbay":
                     lonp,latp = self.nearest_point(lon, lat, lonl, latl,0.06)
                     lonn,latn = self.nearest_point(lon,lat,lonk,latk,0.1)
@@ -670,13 +785,14 @@ class get_fvcom():
                 index3 = np.where(self.lons==lonn)
                 index4 = np.where(self.lats==latn)
                 nodeindex = np.intersect1d(index3,index4)
+                
             
                 pa = self.eline_path(lon,lat)#boundary
                 if self.modelname == "30yr":
                     waterdepth = self.h[nodeindex]
                 else:
                     waterdepth = self.h[nodeindex]+self.zeta[i+1,nodeindex]
-                modpts['time'].append(self.mTime[i+1])
+                modpts['time'].append(self.mTime[i+1])            
                 
                 depth_total = self.siglay[:,nodeindex]*waterdepth  
                 layer = np.argmin(abs(depth_total+depth)) 
@@ -686,8 +802,7 @@ class get_fvcom():
                     print 'This point hits the land here.Less than %d meter.'%abs(depth)
                     raise Exception()
             except:
-                return modpts
-                                
+                return modpts                    
         return modpts
 class get_roms():
     '''
@@ -829,9 +944,29 @@ class get_roms():
         self.h = data['h'][:]; self.s_rho = data['s_rho'][:]
         self.mask_u = data['mask_u'][:]; self.mask_v = data['mask_v'][:]#; mask_rho = data['mask_rho'][:]
         self.u = data['u']; self.v = data['v']; self.zeta = data['zeta']
+        #print self.u
         #return self.fmodtime, self.emodtime
+    def get_wind_fvcom(self,starttime,lat,lon):
+        #print starttime
+        year=starttime.year
+        index=self.nearpoint_index(lat,lon)
+
+        cptime="%i,01,01,00,00"  %year
+        cptimes=datetime.strptime(cptime, '%Y,%m,%d,%H,%M')
+        time_s=(starttime-cptimes).total_seconds()
+        timeindex=int(time_s/60/60)
+
+
+        url_wind="""http://www.smast.umassd.edu:8080/thredds/dodsC/models/fvcom/NECOFS/Archive/meteorology_v1/m_forcing_%s.nc?U10[%i:1:%i][%i:1:%i][%i:1:%i],V10[%i:1:%i][%i:1:%i][%i:1:%i]"""  %(year,timeindex,timeindex,index[0],index[0],index[1],index[1],timeindex,timeindex,index[0],index[0],index[1],index[1])
+        data=get_nc_data(url_wind,'V10','U10')
+        self.v_wind=data['V10'][:];self.u_wind=data['U10'][:]
+        #print self.v_wind,self.u_wind
+       
+        #print vwind
+        #print self.v_wind[0][0][0],self.u_wind[0][0][0]
+        return self.v_wind,self.u_wind
         
-    def get_wind(self,starttime,lat,lon):
+    def get_wind_ncep(self,starttime,lat,lon):
         year=starttime.year
         #print starttime
         lats=(lat-18)/0.1875
@@ -872,7 +1007,7 @@ class get_roms():
         return vwind,uwind
  
         
-    def get_track(self,lon,lat,depth,starttime):#, depth
+    def get_track(self,lon,lat,depth,starttime,wind,wind_get_type):#, depth
         '''
         get the nodes of specific time period
         lon, lat: start point
@@ -918,20 +1053,27 @@ class get_roms():
                 lonrho,latrho = self.shrink_data(lon,lat,self.lon_rho,self.lat_rho)
                 lonu,latu = self.shrink_data(lon,lat,self.lon_u,self.lat_u)
                 lonv,latv = self.shrink_data(lon,lat,self.lon_v,self.lat_v)
-            
+            #print i,layer,indexu,self.u[i,layer][indexu]
             u_t = self.u[i,layer][indexu][0] 
             v_t = self.v[i,layer][indexv][0] 
+            #print v_t,u_t
             starttimes=starttime+timedelta(hours=i)
-            v_wind,u_wind=self.get_wind(starttimes,lat,lon)
+            if wind==0:
+                dx = 60*60*u_t; dy = 60*60*v_t
+            else:
+                if wind_get_type=='NCEP':
+                    v_wind,u_wind=self.get_wind_ncep(starttimes,lat,lon)
+                if wind_get_type=='FVCOM':
+                    v_wind,u_wind=self.get_wind_fvcom(starttimes,lat,lon)
+
+                dx = 60*60*u_t+60*60*u_wind[0][0][0]*wind; dy = 60*60*v_t+60*60*v_wind[0][0][0]*wind
             
             #print v_wind
             #print 'u_t,v_t',u_t,v_t
             if np.isnan(u_t) or np.isnan(v_t): #There is no water
                 print 'Sorry, the point on the land or hits the land. Info: u or v is NAN'
                 return nodes
-            dx = 60*60*u_t+u_wind*60*60*0.005#float(u_p)
-            #print dx
-            dy = 60*60*v_t+v_wind*60*60*0.005#float(v_p)
+            
             #mapx = Basemap(projection='ortho',lat_0=lat,lon_0=lon,resolution='l')                        
             #x,y = mapx(lon,lat)
             #lon,lat = mapx(x+dx,y+dy,inverse=True)            
@@ -1013,33 +1155,7 @@ def cpdrtime(drtime,pointlon,pointlat,pointtime):
         npmodeltime.append(npmotime)#model right data
         #print npmodellon,npmodellat,npmodeltime
     return  npmodellon,npmodellat,npmodeltime
-def cpmotime(drtime,pointlon,pointlat,pointtime):
-    '''compare to the model time get the drifter same time data'''
-    npmotime=[]
-    npmolon=[]
-    npmolat=[]
-    npmodellon=[]
-    npmodellat=[]
-    npmodeltime=[]
-    npdrtimes = np.array(drtime)
-    npmolons = np.array(pointlon)
-    npmolats = np.array(pointlat)
-    npmotimes = np.array(pointtime)
-    #print npdrtimes,npmotimes
-    for i in npdrtimes:
-        md=npmotimes-i
-        #print md
-        index = np.argmin(abs(md))
-        #print md
-        npmotime=npmotimes[index]
-        npmolon=npmolons[index]    
-        npmolat=npmolats[index]
-        npmodellon.append(npmolon)
-        npmodellat.append(npmolat)
-        npmodeltime.append(npmotime)#model right data
-    #print npmodellon,npmodellat,npmodeltime
-    return  npmodellon,npmodellat,npmodeltime
-    
+
 def haversine(lon1, lat1, lon2, lat2): 
     """ 
     Calculate the great circle distance between two points  
@@ -1105,7 +1221,8 @@ def haversine(lon1, lat1, lon2, lat2):
     return dis'''
     
 def calculate_SD(modelpoints,dmlon,dmlat,drtime):
-    '''compare the model_points and drifter point(time same as model point)'''
+    '''compare the model_points and drifter point(time same as model point)
+    (only can pompare one day)!!!'''
     dist=[];meandisdis=[];disdist=[]
     #print modelpoints,dmlon,dmlat,drtime
     dis=dict(dis=[])
@@ -1125,17 +1242,11 @@ def calculate_SD(modelpoints,dmlon,dmlat,drtime):
             disdist.append(disdis)
         if d!=0:  
             distance=[]
-            b=(drtime[a]-drtime[0]).seconds/60
-            #print b,drtime[a],drtime[0]
-            if (drtime[a]-drtime[0]).days==1:
-                b=1440 #minutes per day
-                distance=d/b
-            #elif drtime[a]==drtime[0] and (drtime[0]-drtime[a-1][0]).seconds!=0:                   
-                #distance=0'''
-            else:
-                distance=d/b
+            b=(drtime[a]-drtime[0]).total_seconds()
+            #print b
+            distance=d/b
                  
-            dd.append(distance*1440) #kmperday
+            dd.append(distance*86400) #km per day
         else:
             dd.append(d)
         #print dd
@@ -1155,55 +1266,3 @@ def timedeal(time):
         span.append((time[i+1]-time[i]).seconds)
     span_time=np.mean(span)/60
     return span_time
-def drifterhr(dr_points,days):
-    '''get drifter data on the hour'''
-    #print dr_points
-    drifter_points = dict(ids=[],lat_hr=[],lon_hr=[],lon=[],lat=[],time=[],distance=[])
-    cprtime=[];hrlons=[];hrlats=[]
-    #print dr_points['time']
-    cprstime=dr_points['time'][0].replace(minute=0)
-    cpretime=cprstime+timedelta(days=days)
-    for i in range((cpretime-cprstime).days*24):
-        cprtime.append(cprstime+timedelta(hours=i))
-    npcprtimes = np.array(cprtime)
-    '''npdrlons = np.array(dr_points['lon'])
-    npdrlats = np.array(dr_points['lat'])'''
-    npdrtimes = np.array(dr_points['time'])
-    for i in npcprtimes:
-        md=npdrtimes-i
-        index = np.argmin(abs(md))
-        #print npdrtimes[index],i
-        if npdrtimes[index]>i:
-            erindex=index-1
-            laindex=index
-        else:
-            erindex=index
-            laindex=index+1
-
-        if (npdrtimes[laindex]-npdrtimes[erindex]).seconds==0:
-            #print i,npdrtimes[erindex],npdrtimes[laindex+1],(npdrtimes[laindex+1]-npdrtimes[erindex]).seconds
-            hrlon=dr_points['lon'][erindex]+float((i-npdrtimes[erindex]).seconds)/(npdrtimes[laindex+1]-npdrtimes[erindex]).seconds*(dr_points['lon'][laindex+1]-dr_points['lon'][erindex])
-            hrlat=dr_points['lat'][erindex]+float((i-npdrtimes[erindex]).seconds)/(npdrtimes[laindex+1]-npdrtimes[erindex]).seconds*(dr_points['lat'][laindex+1]-dr_points['lat'][erindex])
-        else:
-            hrlon=dr_points['lon'][erindex]+float((i-npdrtimes[erindex]).seconds)/(npdrtimes[laindex]-npdrtimes[erindex]).seconds*(dr_points['lon'][laindex]-dr_points['lon'][erindex])
-            hrlat=dr_points['lat'][erindex]+float((i-npdrtimes[erindex]).seconds)/(npdrtimes[laindex]-npdrtimes[erindex]).seconds*(dr_points['lat'][laindex]-dr_points['lat'][erindex])
-        hrlons.append(hrlon);
-        hrlats.append(hrlat)
-        #print dr_points['lon'][erindex],dr_points['lon'][laindex],hrlon
-    drifter_points['lon_hr']= hrlons
-    drifter_points['lat_hr']= hrlats
-    drifter_points['lat']=dr_points['lat']
-    drifter_points['lon']=dr_points['lon']
-    drifter_points['time']=dr_points['time']
-    drifter_points['ids']=dr_points['ids']
-    
-    '''npdrtime=npdrtimes[index]
-    npdrlon=npdrlons[index]    
-    npdrlat=npdrlats[index]
-    npdrdellon.append(npdrlon)
-    npdrdellat.append(npdrlat)
-    npdrdeltime.append(npdrtime)'''
-
-    #print drifter_points
-    return drifter_points
-    
