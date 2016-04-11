@@ -462,7 +462,7 @@ def get_fvcom_gom3_grid(a='disk'):
 
 
   
-def getobs_drift_byrange(gbox,input_time):
+def getobs_drift_byrange(gbox,input_time,depth):
     """
    Function written by Huanxin and used in "getdrifter_erddap.py"
    get data from url, return id, latitude,longitude, and times
@@ -477,7 +477,8 @@ def getobs_drift_byrange(gbox,input_time):
     # open url to get data
     url='http://comet.nefsc.noaa.gov:8080/erddap/tabledap/drifters.csv?id&time>='\
     +str(mintime)+'&time<='+str(maxtime)+'&latitude>='\
-    +str(lat_min)+'&latitude<='+str(lat_max)+'&longitude>='+str(lon_min)+'&longitude<='+str(lon_max)+'&orderBy("id")'
+    +str(lat_min)+'&latitude<='+str(lat_max)+'&longitude>='+str(lon_min)+'&longitude<='+str(lon_max)+'&depth'+depth+'&orderBy("id")'
+    #print url
     df=pd.read_csv(url,skiprows=[1])
     ids=df.id.values
     news_ids = []
@@ -489,7 +490,7 @@ def getobs_drift_byrange(gbox,input_time):
     return news_ids
 
 
-def getobs_drift_byidrange(id,gbox,input_time):
+def getobs_drift_byidrange(id,gbox,input_time,depth):
     """
      Function written  by Huanxin and used by getdrifter_erddap.py
      get data from url, return ids latitude,longitude, times
@@ -497,18 +498,24 @@ def getobs_drift_byidrange(id,gbox,input_time):
      and they should be timezone aware
      example: input_time=[dt(2012,1,1,0,0,0,0,pytz.UTC),dt(2012,2,1,0,0,0,0,pytz.UTC)]
      """
+    drifter=dict(ids=[],time=[],lon=[],lat=[],depth=[]) 
     mintime=input_time[0].strftime('%Y-%m-%d'+'T'+'%H:%M:%S'+'Z')  # change time format
     maxtime=input_time[1].strftime('%Y-%m-%d'+'T'+'%H:%M:%S'+'Z')   
     lon_max=gbox[0];lon_min=gbox[1];lat_max=gbox[2];lat_min=gbox[3]
     # open url to get data
-    url='http://comet.nefsc.noaa.gov:8080/erddap/tabledap/drifters.csv?id,time,latitude,longitude&time>='\
+    url='http://comet.nefsc.noaa.gov:8080/erddap/tabledap/drifters.csv?id,time,latitude,longitude,depth&time>='\
     +str(mintime)+'&time<='+str(maxtime)+'&latitude>='+str(lat_min)+'&latitude<='+str(lat_max)+'&longitude>='\
-    +str(lon_min)+'&longitude<='+str(lon_max)+'&id="'+str(id)+'"&orderBy("id,time")'
+    +str(lon_min)+'&longitude<='+str(lon_max)+'&id="'+str(id)+'"&depth'+depth+'&orderBy("id,time")'
     #print url
     df=pd.read_csv(url,skiprows=[1])
     #print df,type(df)
     #print 2
     for k in range(len(df)):
        df.time.values[k]=parse(df.time.values[k])
-    return df.time.values,df.id.values,df.longitude.values,df.latitude.values
+    drifter['time']=df.time.values
+    drifter['ids']=df.id.values
+    drifter['lon']=df.longitude.values
+    drifter['lat']=df.latitude.values
+    drifter['depth']=df.depth.values
+    return drifter
     
