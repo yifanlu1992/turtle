@@ -19,17 +19,17 @@ import csv
 from drifter_vs_model_function import get_drifter_track,get_fvcom,get_roms,calculate_SD,drifterhr
 ######## Hard codes ##########
 drifter_data_type='erddap'#'raw''csv','erddap','npy'  the method of get drifter data
-Model=['30yr']#'GOM3','massbay','30yr','ROMS'# model want to be compair with drifter track
-drifterID_list = []#if drifter_ID=[],get drifter id from list  
+Model=['ROMS']#'GOM3','massbay','30yr','ROMS'# model want to be compair with drifter track
+drifter_ID = []#if drifter_ID=[],get drifter id from list  
 drifter_list='erddap_drifter_list_both.csv'#get from get_drifter_list code
 depth =[-15]
-track=20#how many track you want compare
+track=20#how many drifter you want compare
 days=21# for one drifter how many days want to compare #if use 'raw' max days is 3#how many drifter have how many data 
 track_days=1#each time how many days want to compair
 restart_days=1#the day you want to restart compair
 start_times =[dt.datetime(2011,5,22,17,0,0,0)]#if have drifter_ID it will be use how many drifter have how many data 
-wind_get_type='FVCOM'
-wind=0.01#if you don't want have wind correct,wind =0
+wind_get_type='FVCOM'#'NCEP'
+wind=0#if you don't want have wind correct,wind =0
 ######## Drifter and model track ##########
 print "get drifter data from "+ drifter_data_type+" use %s model compare %i days" %(Model,days-1)
 #the file we get from the program erddap_gtedrifter_list 
@@ -41,6 +41,7 @@ if drifter_list==[]:
     elif 'ROMS' not in Model and '30yr' in Model:
         drifter_list='erddap_drifter_list_30yr.csv'
 file_drID=[];
+
 if 'ROMS' in Model:
     romstmeandis=[];romstmindis=[];romstmaxdis=[];romsdmeandis=[];romsdmindis=[];romsdmaxdis=[]
 if '30yr' in Model:
@@ -49,20 +50,23 @@ if 'GOM3' in Model:
     gomtmeandis=[];gomtmindis=[];gomtmaxdis=[];gomdmeandis=[];gomdmindis=[];gomdmaxdis=[]
 if 'massbay' in Model:
     masstmeandis=[];masstmindis=[];masstmaxdis=[];massdmeandis=[];massdmindis=[];massdmaxdis=[];
-if drifterID_list==[]:#get drifter information from file
+
+if drifter_ID==[]:#get drifter information from file
     # read in the drifter IDs and their mean,min, max sample intervals    
     start_times=[]    
+    print 1,drifter_list
     drifters = np.genfromtxt(drifter_list,dtype=None,names=['ids','start_time','days','mean','max','min','depth'],delimiter=',',skip_header=1)    
     for i in range(len(drifters['ids'])):
         dt_time=datetime.strptime(drifters['start_time'][i], '%Y-%m-%d'+' '+'%H:%M:%S+00:00')       
         start_times.append(dt_time)
-    print drifters['depth']
+    
 
 else:
+    print 34
     drifters=dict(ids=[],days=[])
-    drifters['ids']=drifterID_list
+    drifters['ids']=drifter_ID
     drifters['depth']=depth
-    for b in range(len(drifterID_list)):
+    for b in range(len(drifter_ID)):
         drifters['days'].append(days)  
         
 
@@ -94,7 +98,8 @@ for num in range(min(len(drifters['ids']),track)): # we limit runs to "track" dr
                 get_obj =  get_fvcom(i)
                 url_fvcom = get_obj.get_url(start_time,end_times)                
                 b_points = get_obj.get_data(url_fvcom) # b_points is model boundary points.                
-                modelpoints = get_obj.get_track(drifter_points['lon_hr'][nday*24],drifter_points['lat_hr'][nday*24],drifters['depth'][num],start_time,wind,wind_get_type)#get one day model data
+                modelpoints= get_obj.get_track(drifter_points['lon_hr'][nday*24],drifter_points['lat_hr'][nday*24],drifters['depth'][num],start_time,wind,wind_get_type)#get one day model data
+           
                 print 2
             if i=='ROMS':        
                 get_obj = get_roms()
@@ -105,16 +110,17 @@ for num in range(min(len(drifters['ids']),track)): # we limit runs to "track" dr
                        
 
             # if the model, for example, goes out of the domain, it will have less # of points 
-            if len(modelpoints['lon'])==24*track_days:#one day model should have 24 points 
+            if len(modelpoints['lon'])==24*track_days:# and windspeed<36:#one day model should have 24 points 
                 model_points['lon'].append(modelpoints['lon']); model_points['lat'].append(modelpoints['lat']);model_points['time'].append(modelpoints['time'])#"model_points" has all days data wjile "modelpoints" is track_days data
                 dist=[];
-                #dist is one day all distance meandistance is this day mean distance/day meandisdis is this day mean distance/distance
+                #dist is one day all distance ; meantdis is this day mean distance/day ; meandisdis is this day mean distance/distance
                 dist,meantdis,meandisdis=calculate_SD(modelpoints,drifter_points['lon_hr'][nday*24:(nday+track_days)*24],drifter_points['lat_hr'][nday*24:(nday+track_days)*24],drifter_points['h_hr'][nday*24:(nday+track_days)*24])
                 distance.append(dist)#one drifter one model all distance 
                 meandisdist.append(meandisdis) #one drifter one model per day mean distance/dist                
                 meantimedis.append(meantdis)#one drifter one model per day mean distance/day
             else:
                 model_points['lon'].append(modelpoints['lon']); model_points['lat'].append(modelpoints['lat']);model_points['time'].append(modelpoints['time'])#model_points is all days data modelpoints is only one days data
+            #print meantdis
         drifter_points['distance'].append(distance)
         print 4
 #########plot######
