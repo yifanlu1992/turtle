@@ -683,6 +683,7 @@ class get_fvcom():
         '''
         Get forecast points start at lon,lat
         '''
+        windspeed=[]
         modpts = dict(lon=[lon], lat=[lat], layer=[], time=[]) #model forecast points
         #uvz = netCDF4.Dataset(self.url)
         #u = uvz.variables['u']; v = uvz.variables['v']; zeta = uvz.variables['zeta']
@@ -740,15 +741,19 @@ class get_fvcom():
 
             starttimes=starttime+timedelta(hours=i)
             if wind==0:
+
                 dx = 60*60*u_t; dy = 60*60*v_t
             else:
                 if wind_get_type=='NCEP':
                     v_wind,u_wind=self.get_wind_ncep(starttimes,lat,lon)
+                    meanwindspeed=0
                 if wind_get_type=='FVCOM':
                     v_wind,u_wind=self.get_wind_fvcom(starttimes,lat,lon)
 
                 dx = 60*60*u_t+60*60*u_wind[0][0][0]*wind; dy = 60*60*v_t+60*60*v_wind[0][0][0]*wind
-
+                windspeed.append(u_wind[0][0][0]*u_wind[0][0][0]+v_wind[0][0][0]*v_wind[0][0][0])
+                
+                #windspeed.append(v_wind[0][0][0]*v_wind[0][0][0]+u_wind[0][0][0]*u_wind[0][0][0])
             #u_t = (u_t1+u_t2)/2; v_t = (v_t1+v_t2)/2
             '''if u_t==0 and v_t==0: #There is no water
                 print 'Sorry, hits the land,u,v==0'
@@ -772,6 +777,7 @@ class get_fvcom():
             lon = temlon; lat = temlat
             #if i!=(t-1):                
             try:
+                #print 12345
                 if self.modelname == "GOM3" or self.modelname == "30yr":
                     lonp,latp = self.nearest_point(lon, lat, lonl, latl,0.8)
                     lonn,latn = self.nearest_point(lon,lat,lonk,latk,1.2)
@@ -802,8 +808,9 @@ class get_fvcom():
                     print 'This point hits the land here.Less than %d meter.'%abs(depth)
                     raise Exception()
             except:
-                return modpts                    
-        return modpts
+                return modpts 
+        meanwindspeed=np.mean(windspeed)                 
+        return modpts,meanwindspeed
 class get_roms():
     '''
     ####(2009.10.11, 2013.05.19):version1(old) 2009-2013
@@ -1013,7 +1020,7 @@ class get_roms():
         lon, lat: start point
         depth: 0~35, the 0th is the bottom.
         '''
-
+        windspeed=[]
         lonrho,latrho = self.shrink_data(lon,lat,self.lon_rho,self.lat_rho)
         lonu,latu = self.shrink_data(lon,lat,self.lon_u,self.lat_u)
         lonv,latv = self.shrink_data(lon,lat,self.lon_v,self.lat_v)
@@ -1059,6 +1066,7 @@ class get_roms():
             #print v_t,u_t
             starttimes=starttime+timedelta(hours=i)
             if wind==0:
+                windspeed=0
                 dx = 60*60*u_t; dy = 60*60*v_t
             else:
                 if wind_get_type=='NCEP':
@@ -1067,7 +1075,7 @@ class get_roms():
                     v_wind,u_wind=self.get_wind_fvcom(starttimes,lat,lon)
 
                 dx = 60*60*u_t+60*60*u_wind[0][0][0]*wind; dy = 60*60*v_t+60*60*v_wind[0][0][0]*wind
-            
+                windspeed.append(v_wind[0][0][0]*v_wind[0][0][0]+u_wind[0][0][0]*u_wind[0][0][0])
             #print v_wind
             #print 'u_t,v_t',u_t,v_t
             if np.isnan(u_t) or np.isnan(v_t): #There is no water
