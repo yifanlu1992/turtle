@@ -771,7 +771,13 @@ class get_fvcom():
                 tempa = Path(teml)
                 if pa.intersects_path(tempa): 
                     print 'Sorry, point hits land here.path'
-                    return modpts#'''
+                    if len(windspeed)<2:
+                        print 12
+                        meanwindspeed=windspeed
+                    else:
+                        print 34
+                        meanwindspeed=np.mean(windspeed)                 
+                    return modpts,meanwindspeed
 
 
             lon = temlon; lat = temlat
@@ -809,7 +815,12 @@ class get_fvcom():
                     raise Exception()
             except:
                 return modpts 
-        meanwindspeed=np.mean(windspeed)                 
+        if len(windspeed)<2:
+            print 12
+            meanwindspeed=windspeed
+        else:
+            print 34
+            meanwindspeed=np.mean(windspeed)                 
         return modpts,meanwindspeed
 class get_roms():
     '''
@@ -1080,7 +1091,12 @@ class get_roms():
             #print 'u_t,v_t',u_t,v_t
             if np.isnan(u_t) or np.isnan(v_t): #There is no water
                 print 'Sorry, the point on the land or hits the land. Info: u or v is NAN'
-                return nodes
+                print 123
+                if len(windspeed)<2:
+                    meanwindspeed=windspeed
+                else:
+                    meanwindspeed=np.mean(windspeed)    
+                return nodes,meanwindspeed     
             
             #mapx = Basemap(projection='ortho',lat_0=lat,lon_0=lon,resolution='l')                        
             #x,y = mapx(lon,lat)
@@ -1120,8 +1136,11 @@ class get_roms():
             except:
                 #print 'loop problem.'
                 return nodes
-        #print nodes   
-        return nodes      
+        if len(windspeed)<2:
+            meanwindspeed=windspeed
+        else:
+            meanwindspeed=np.mean(windspeed)    
+        return nodes,meanwindspeed     
 
         
 def model_start_point(time,starttime,drlon,drlat):
