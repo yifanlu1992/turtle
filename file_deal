@@ -1,0 +1,44 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Jun  2 15:58:02 2016
+
+@author: qianran
+"""
+
+import urllib
+import netCDF4
+import sys
+from decimal import *
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib 
+from mpl_toolkits.basemap import Basemap
+import pylab
+import pandas as pd
+from matplotlib import animation
+from datetime import datetime, timedelta
+
+filename = 'drift_X.dat'
+title="2016 drifters"
+save_dir = './Results/'
+result = 'banimation'#if file have many data(more than 4 drifters or more than 2 monthes) use banimation else use animation
+basetime = datetime(2016,1,1)#file start time 
+drpoint_number=5#how many  point number for one drifter you want to show on the  .gif
+add_points=0#how many points want to add between two drifter points
+colors = ['cyan','green','blue','olive','orange','magenta','red','purple','black','yellow']
+mapmethod='bluemarble'#'etopo''usgs''bluemarble'#bluemarble and etopo both belong to basemap 
+track='line'#'point''line'
+
+newopen = open('./new_drifter_X.dat', 'w')
+
+files=file('drift_X.dat')
+for line in files:
+    if  line[20]=='6' or line[20]=='4' or line[20]=='5':#time
+        if line[47]=='-' or line[47]=='7' or line[47]=='6'or line[47]=='5'or line[47]=='4':
+            if line[58]==' '  or line[58]=='3'or line[58]=='2'or line[58]=='4':
+             newopen.write(line)
+    else:
+        print line
+        pass
+        
+newopen.close()
