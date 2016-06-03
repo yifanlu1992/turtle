@@ -32,11 +32,15 @@ track='line'#'point''line'
 newopen = open('./new_drifter_X.dat', 'w')
 
 files=file('drift_X.dat')
+first_line = files.readline()
+lon=float(line[46:54])
+lat=float(line[58:66])
 for line in files:
+    print float(line[46:54])
     if  line[20]=='6' or line[20]=='4' or line[20]=='5':#time
-        if line[47]=='-' or line[47]=='7' or line[47]=='6'or line[47]=='5'or line[47]=='4':
-            if line[58]==' '  or line[58]=='3'or line[58]=='2'or line[58]=='4':
-             newopen.write(line)
+        if lon<-42 or lon>-75:
+            if lat<45 or lat>24:
+               newopen.write(line)
     else:
         print line
         pass
