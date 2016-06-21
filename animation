@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-Created on Fri May  6 13:39:13 2016
-animation
+Created on Thu Jun 16 12:58:45 2016
 
-@author: qzhang
+@author: zdong
 """
+
+import csv
 import urllib
 import netCDF4
 import sys
@@ -17,28 +18,111 @@ import pylab
 import pandas as pd
 from matplotlib import animation
 from datetime import datetime, timedelta
-
+from dateutil.relativedelta import relativedelta
 ##########hard code
-filename = 'drift_X.dat'
-title="2016 drifters"
+filename = 'drift_ep_2016_1.csv'#'drift_ep_2016_1.csv'
+title="Educational Passages mini boat"#the name you want show on the .gif
+sttime=datetime(2015,1,1)
+end_time=datetime(2016,6,1)
 save_dir = './Results/'
-result = 'banimation'#if file have many data use banimation else use animation
-basetime = datetime(2015,1,1)
-drpoint_number=5#how many  point number for one drifter you want to show on the  .gif
-add_points=0#how many points want to add between two drifter points
-colors = ['cyan','green','blue','olive','orange','magenta','red','purple','black','yellow']
-mapmethod='bluemarble'#'etopo''usgs''bluemarble'
+result ='animation'#plot  animation
+linetime=48#hour
+showtimegap=3
+add_points=1#how many points want to add between two drifter points
+colors = ['cyan','olive','orange','magenta','red','purple','black','yellow']#,'green'
+mapmethod='etopo'#'etopo''usgs''bluemarble'#bluemarble and etopo both belong to basemap 
 track='line'#'point''line'
+zoom='on'#'on'
+zoom_area=[-5,-82,60,20]#[lon[max],lon[min],lat[max],lat[min]]
 #####drifter data 
+
+dtimes=[]
+points = {'lats':[],'lons':[],'ids':[],'times':[],'months':[],'days':[]} 
+newfilename = 'new_%s' %filename
 df=pd.read_csv(filename,header=None,skiprows=1); #get the drifter data 
-print filename
+ids = df[0][:] 
+idlist = set(ids); #the # of drifters
+addtime=[]
+file_data=[]
+for n in idlist:
+    index = np.where(df[0]==n)[0]
+    ddata = df.ix[index];
+
+    dtimes=[]
+    syear=str(ddata[0][index[0]])[0:2]
+    for i in index:
+        lon=ddata[7][i]
+        lat=ddata[8][i]
+        month=ddata[2][i]
+        day=ddata[3][i]
+        hour=ddata[4][i]
+        minute=ddata[5][i]
+        if zoom=='on':
+            if lon<=zoom_area[0] and lon>=zoom_area[1] and lat<zoom_area[2] and lat>zoom_area[3] :
+                
+                time='20'+str(syear)+'-'+str(month)+'-'+str(day)+' '+str(hour)+':'+str(minute)
+                
+                dtimes.append(datetime.strptime(time, '%Y-%m-%d'+' '+'%H:%M' ))
+
+                    
+                if len(dtimes)==1:
+                    pass
+                elif dtimes[-1]<dtimes[-2]:
+                    dtimes[-1]=dtimes[-1] + relativedelta(years=1)
+                    syear=int(syear)+1
+                    #print dtimes[-1],dtimes[-2]
+    
+                if dtimes[-1]>sttime and dtimes[-1]<end_time:
+                    points['times'].extend([dtimes[-1]])#.strftime('%Y-%m-%d %H:%M'))
+                    points['lons'].extend([lon]); points['lats'].extend([lat]);
+                    points['ids'].extend([n]);points['months'].extend([month]);points['days'].extend([day])   
+        if zoom=='off':
+            time='20'+str(syear)+'-'+str(month)+'-'+str(day)+' '+str(hour)+':'+str(minute)
+                
+            dtimes.append(datetime.strptime(time, '%Y-%m-%d'+' '+'%H:%M' ))
+        
+
+            if len(dtimes)==1:
+                pass
+            elif dtimes[-1]<dtimes[-2]:
+                #print 1
+                dtimes[-1]=dtimes[-1] + relativedelta(years=1)
+                syear=int(syear)+1
+
+
+            if dtimes[-1]>sttime and dtimes[-1]<end_time:
+                points['times'].extend([dtimes[-1]])#.strftime('%Y-%m-%d %H:%M'))
+                points['lons'].extend([lon]); points['lats'].extend([lat]);
+                points['ids'].extend([n]);points['months'].extend([month]);points['days'].extend([day])   
+mintime=min(points['times'])     
+#print mintime   
+file_data.append(points['ids'])
+file_data.append(points['months'])
+file_data.append(points['days'])
+file_data.append(points['times'])
+file_data.append(points['lons'])
+file_data.append(points['lats'])
+
+dr=map(list, zip(*file_data))
+
+###make a list
+csvfile = file(newfilename, 'wb')
+writer = csv.writer(csvfile)
+writer.writerow(['ids', 'month', 'day','time','lon','lat'])
+writer.writerows(dr)
+csvfile.close() 
+
+df=pd.read_csv(newfilename,header=None,skiprows=1); #get the drifter data 
 ids = df[0][:] 
 idlist = set(ids); #the # of drifters
 print idlist
+
 #######basemap and function
-def draw_basemap(ax, points, interval_lon=5, interval_lat=5):#we use interval_lon control the longitude  tick labels
+def draw_basemap(ax, points, interval_lon=10, interval_lat=10):#we use interval_lon control the longitude  tick labels
     '''
-    draw the basemap?
+    use basemap function draw the map 
+    we use interval_lon control the longitude tick labels on axis
+    when we use 'etopo' ,the file will bigger than 'bluemarble' 
     '''
     
     lons = points['lons']
@@ -61,14 +145,14 @@ def draw_basemap(ax, points, interval_lon=5, interval_lat=5):#we use interval_lo
     dmap.drawmeridians(np.arange(int(map_lon[0])-1,
                                  int(map_lon[1])+1,interval_lon),
                        labels=[0,0,0,1])
-    #dmap.drawcoastlines()
+    #dmap.drawcoastlines()# draw the coast line
     dmap.fillcontinents(color='grey')
     if mapmethod=='etopo':
         dmap.etopo()#use this one make .gif file bigger than use bluemarble 
     elif mapmethod=='bluemarble':
         dmap.bluemarble()#choose this one or etopo
     #dmap.drawmapboundary()
-    #dmap.etopo()#use this one make .gif file bigger than use bluemarble 
+
 
 def lat2str(deg):
     min = 60 * (deg - np.floor(deg))
@@ -100,7 +184,7 @@ def lon2str(deg):
 
    
 def basemap_usgs(points,bathy,cont_range,ss):
-    # plot the coastline and, if bathy is True, bathymetry is plotted
+    #plot the coastline and, if bathy is True, bathymetry is plotted
     # lat and lon can be any list of positions in decimal degrees
     #parallels_interval is the tick interval on axis
     #cont_range is the depth contours to plot
@@ -132,12 +216,10 @@ def basemap_usgs(points,bathy,cont_range,ss):
         maxlat=max(lat)#+0.01
         minlon=min(lon)#-0.01
         maxlon=max(lon)#+0.01
-        print minlat,maxlat
         index_minlat=int(round(np.interp(minlat,basemap_lat,range(0,basemap_lat.shape[0]))))
         index_maxlat=int(round(np.interp(maxlat,basemap_lat,range(0,basemap_lat.shape[0]))))
         index_minlon=int(round(np.interp(minlon,basemap_lon,range(0,basemap_lon.shape[0]))))
         index_maxlon=int(round(np.interp(maxlon,basemap_lon,range(0,basemap_lon.shape[0]))))
-        print index_minlat,index_maxlat
         return index_minlat,index_maxlat,index_minlon,index_maxlon,basemap_lat,basemap_lon,basemap_topo
     
     index_minlat,index_maxlat,index_minlon,index_maxlon,basemap_lat,basemap_lon,basemap_topo = get_index_latlon()
@@ -157,41 +239,44 @@ def basemap_usgs(points,bathy,cont_range,ss):
         CS=plt.contour(X,Y,basemap_topo[min_index_lat:max_index_lat:ss,index_minlon:index_maxlon:ss],cont_range,linewidths=0.5)#cont_range)#,colors=['0.75','0.80','0.85','0.90'],linewith=0.05)
         plt.clabel(CS, fmt='%5.0f m', colors='b', fontsize=8)
 
-
     if min_index_lat==max_index_lat:
         print "No basemap_usgs data available for this area"
     else: 
         plt.contourf(X,Y,basemap_topo[min_index_lat:max_index_lat:ss,min_index_lon:max_index_lon:ss],[0,1000],colors='0.5')
         
 ########animation    
-
+if sttime<mintime   :
+    start_time=mintime
+else:
+    start_time=sttime
 points = {'lats':[],'lons':[]}  # collect all points we've gained
 lons = []; lats = []; loop_num = []; times =[]; ctime = []; toltime = [] #mint = []; maxt = []
 
 for i in idlist:
     index = np.where(df[0]==i)[0]
     ddata = df.ix[index]; 
-    points['lons'].extend(ddata[7]); points['lats'].extend(ddata[8])
+    points['lons'].extend(ddata[4]); points['lats'].extend(ddata[5])
     ts = []; ds = []
+    year=start_time.year
     for j in range(len(ddata)):
-        year=basetime.year
-        if np.array(ddata[2])[j]!=1 and np.array(ddata[3])[j]!=1:
-            basetime=datetime(2016,1,1)
-        strt='%i-' %year+str(np.array(ddata[2])[j])+'-'+str(np.array(ddata[3])[j])+' '+str(np.array(ddata[4])[j])+':'+str(np.array(ddata[5])[j])    
-        temptime = datetime.strptime(strt,'%Y-%m-%d %H:%M')
+
+        strt=ddata[3][index[j]]
+        temptime = datetime.strptime(strt,'%Y-%m-%d'+' '+'%H:%M:%S')
         ts.append(temptime) #'''
-        ths = (temptime - basetime).total_seconds()/3600
+        ths = (temptime - start_time).total_seconds()/3600
         ds.append(int(round(ths)))
+
+        
     #mint.append(min(ds)); maxt.append(max(ds))
     times.append(np.array(ts)); ctime.append(np.array(ds)); toltime.extend(ds)
-    lons.append(np.array(ddata[7])); lats.append(np.array(ddata[8]))
-    loop_num.append(len(ddata[7]))
-
+    lons.append(np.array(ddata[4])); lats.append(np.array(ddata[5]))
+    loop_num.append(len(ddata[4]))
+    #print times
 #mintime = min(mint); maxtime = max(maxt)
 #mtime = range(mintime,maxtime+1)
 toltime = set(toltime); 
 toltime = list(toltime); toltime.sort(); print 'plotting...',len(toltime)
-print toltime
+
 
 
 if result == 'plot':
@@ -202,113 +287,65 @@ if result == 'plot':
 '''ax.annotate(an2,xy=(dr_points['lon'][-1],dr_points['lat'][-1]),xytext=(dr_points['lon'][-1]+0.01*track_days,
             dr_points['lat'][-1]+0.01*track_days),fontsize=6,arrowprops=dict(arrowstyle="fancy"))#'''
 
-if result == 'animation':
-    length = 1; 
-    if len(toltime)>1000:
-        length = 10
-    print 'frame:',len(toltime)
-    def animate(n): # the function of the animation
-        del ax.lines[:]#del ax.collections[:]ax.cla()
-        supt = (basetime + timedelta(hours=toltime[n])).strftime('%m-%d %H:%M')
-        plt.suptitle('%s  \n time: %s'%(title,supt))      
-       
-        for i in range(len(lons)):
-            c = colors[i%10]
-            if toltime[n] < ctime[i][0]:
-                ax.plot(lons[i][0],lats[i][0],'o-',color=c,markersize=0)
-            elif toltime[n] > ctime[i][-1]:
-                ax.plot(lons[i][-1],lats[i][-1],'o-',color=c,markersize=10)
-            #if len(lons[i])>(n+1):        
-            #if toltime[n] in ctime[i]:
-            #if toltime[n]>=ctime[i][0] and toltime[n]<=ctime[i][-1]:
-            else:
-                abct = ctime[i] - toltime[n]
-                ni = np.argmin(abs(abct)); 
-                if ni<drpoint_number*length :
-                    while(ni>=0):
-                        ax.plot(lons[i][ni],lats[i][ni],'o-',color=c,markersize=(ni+1))
-                        
-                        ni=ni-1*length
-                else:
-                    pointsize=5
-                    #draw  the line between 2 drifter points
-                    if track=='line':
-                        pointsize=5
-                        for a in range(drpoint_number+1):
-                            ax.plot(lons[i][ni-a*length],lats[i][ni-a*length],'o-',color=c,markersize=pointsize+1)
-                            ax.plot([lons[i][ni-(a+1)*length],lons[i][ni-a*length]],[lats[i][ni-(a+1)*length],lats[i][ni-a*length]],'-', color=c,linewidth=pointsize)
-                            pointsize=pointsize-1
-                        
-                    elif track=='point':
-                        pointsize=10
-                        for a in range(drpoint_number+1):
 
-                            ax.plot(lons[i][ni-a*length],lats[i][ni-a*length],'o-',color=c,markersize=pointsize+1)
-                            for ap in range(add_points+1):
-                                ax.plot((lons[i][ni-(a+1)*length]+lons[i][ni-a*length])*ap/(add_points+1),(lats[i][ni-(a+1)*length]+lats[i][ni-a*length])*ap/(add_points+1),'o-',color=c,markersize=pointsize-1)
-                            pointsize=pointsize-2
-                            
-    anim = animation.FuncAnimation(fig, animate, frames=len(toltime), interval=50) #
-    if mapmethod=='etopo' or mapmethod=='bluemarble':
-        fig = plt.figure(figsize=(10,9)) #figsize=(16,12)
-        #can use this to control where the picture is 
-        ax = fig.add_subplot(111)
-        draw_basemap(ax, points)  # points is using here
-        anim = animation.FuncAnimation(fig, animate, frames=ailoops, interval=100) 
-    elif mapmethod=='usgs':
-        fig = plt.figure(figsize=(10,9)) #figsize=(16,12)
-        #can use this to control where the picture is 
-        ax = fig.add_subplot(111)
-        basemap_usgs(points,True,[-100,-50,0],1)
-        thismanager3 = pylab.get_current_fig_manager()
-        anim = animation.FuncAnimation(fig, animate, frames=ailoops, interval=100) 
-    en_run_time = datetime.now()
-    anim.save(save_dir+'%s.gif'%(filename[:-4]),writer='imagemagick',dpi=100)
-    
     
 #compare to the 'animation','banimation' is more fit the file which have more drifter  or more data 
-if result == 'banimation':
-    seglength = 10; 
-    ailoops = int(len(toltime)/seglength)
+if result == 'animation':
+    ailoops = int(len(toltime)/showtimegap)+1
     print 'frame:',ailoops
     def animate(n):
-        del ax.lines[:]#del ax.collections[:]ax.cla()
-        n = seglength*n; #print n
-        supt = (basetime + timedelta(hours=toltime[n])).strftime('%Y-%m-%d %H:%M')
-        plt.suptitle('%s  \n time: %s'%(title,supt),fontsize=12)   
         
+        del ax.lines[:]#del ax.collections[:]ax.cla()
+        n = showtimegap*n; 
+        print n,len(toltime)
+        if n>=len(toltime):
+            n=len(toltime)-1
+            supt = (start_time + timedelta(hours=toltime[n])).strftime('%Y-%m-%d %H:%M')  
+            drawst=start_time + timedelta(hours=toltime[n])
+            drawend=drawst+timedelta(hours=linetime)
+        else:
+            supt = (start_time + timedelta(hours=toltime[n])).strftime('%Y-%m-%d %H:%M')  
+            drawst=start_time + timedelta(hours=toltime[n])
+            drawend=drawst+timedelta(hours=linetime)
+            print 1
+        #print supt        
+        plt.suptitle('%s  \n time: %s'%(title,supt),fontsize=12)   
+        plt.text(0.98,0.02,(start_time + timedelta(hours=toltime[n])).month,color='red',fontsize=12)
         for i in range(len(lons)): #loop drifters
             
-            c = colors[i%10]
+            std=times[i]-drawst
+            sindex = np.argmin(abs(std))
+            etd=times[i]-drawend
+            eindex = np.argmin(abs(etd))
+            seglength=eindex-sindex
+
+            c = colors[i%len(colors)]
             if track=='line':
-                if toltime[n] > ctime[i][-1]:
-                    if toltime[n-seglength]<ctime[i][-1]:
-                        lki = ctime[i] - toltime[n-seglength]
-                        nik = np.argmin(abs(lki));
-                        wlp = len(ctime[i])-nik
-                        for j in range(wlp):
-                            ax.plot(lons[i][-(j+1)],lats[i][-(j+1)],'o-',color=c,markersize=wlp-j+1,markeredgecolor = 'none')                  
-
-                        
-                    '''else:
+                
     
-                        ax.plot(lons[i][-1],lats[i][-1],'o-',color=c,markersize=10)'''
-                else:
-    
-                    abct = ctime[i] - toltime[n]
-                    ni = np.argmin(abs(abct)); 
-                    
-                    if ni<seglength:
+                abct = ctime[i] - toltime[n]
+                #print abct
+                ni = np.argmin(abs(abct)); 
+                
+                if ni<seglength:
 
-                        while (ni>=0):
+                    while (ni>=0):
+                        if ni>9:
+                            ax.plot(lons[i][ni],lats[i][ni],'o',color=c,markersize=10,markeredgecolor = 'none')
+                        else:
                             ax.plot(lons[i][ni],lats[i][ni],'o',color=c,markersize=ni+1,markeredgecolor = 'none')
-                            ni=ni-1
+                        ni=ni-1
 
-                    else:
-                        for k in range(seglength):
-
-                            ax.plot(lons[i][ni-k],lats[i][ni-k],'o-',color=c,markersize=0.5*seglength-0.5*k+0.5,markeredgecolor = 'none')
-                            ax.plot([lons[i][ni-k-1],lons[i][ni-k]],[lats[i][ni-k-1],lats[i][ni-k]],'-', color=c,linewidth=0.5*seglength-0.5*k)                           
+                else:
+                    marksize=7
+                    for k in range(seglength):
+                        if marksize==2:
+                            pass
+                        else:
+                            marksize=marksize-1
+                        linew=marksize-1      
+                        ax.plot(lons[i][ni-k],lats[i][ni-k],'o-',color=c,markersize=marksize,markeredgecolor = 'none')
+                        ax.plot([lons[i][ni-k-1],lons[i][ni-k]],[lats[i][ni-k-1],lats[i][ni-k]],'-', color=c,linewidth=linew)                           
 
             elif track=='point':
                 if toltime[n] > ctime[i][-1]:
@@ -341,20 +378,21 @@ if result == 'banimation':
 
     
     if mapmethod=='etopo' or mapmethod=='bluemarble':
-        fig = plt.figure(figsize=(10,9)) #figsize=(16,12)
+        fig = plt.figure() #figsize=(10,9)
         #can use this to control where the picture is 
         ax = fig.add_subplot(111)
         draw_basemap(ax, points)  # points is using here
+        print 1
         anim = animation.FuncAnimation(fig, animate, frames=ailoops, interval=100) 
     elif mapmethod=='usgs':
         fig = plt.figure(figsize=(10,9)) #figsize=(16,12)
         #can use this to control where the picture is 
         ax = fig.add_subplot(111)
-        basemap_usgs(points,True,[-100,-50,0],1)
-        plt.legend()
+        basemap_usgs(points,True,[-40,-30,-20,-10,0],1)
         thismanager3 = pylab.get_current_fig_manager()
         anim = animation.FuncAnimation(fig, animate, frames=ailoops, interval=100) 
     en_run_time = datetime.now()
     # mencoder,imagemagick,ffmpeg
 anim.save(save_dir+'%s.gif'%(filename[:-4]),writer='imagemagick',dpi=100)#file name
 plt.show()
+
