@@ -21,20 +21,20 @@ from matplotlib import animation
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 ##########hard code
-filename = 'drift_X.csv'#'drift_ep_2016_1.csv'
-title="NOAA drifters and mini boats"#the name you want show on the .gif
+filename = 'drift_ep_2016_1.csv'#'drift_ep_2016_1.csv'
+title="Educational Passages Unmanned Sailboats"#the name you want show on the .gif
 sttime=datetime(2016,1,1)
-end_time=datetime(2016,6,1)
+end_time=datetime(2016,6,23)
 save_dir = './Results/'
 result ='animation'#plot  animation
-linetime=72#hour
-showtimegap=12#hour
+linetime=48#hour
+showtimegap=12
 add_points=1#how many points want to add between two drifter points
-colors = ['cyan','blue','olive','orange','magenta','red','purple','black','yellow']#,'green'
+colors = ['cyan','olive','orange','magenta','red','purple','black','yellow']#,'green'
 mapmethod='etopo'#'etopo''usgs''bluemarble'#bluemarble and etopo both belong to basemap 
 track='line'#'point''line'
-zoom='off'#'on'
-zoom_area=[-66,-71,44,41]#[lon[max],lon[min],lat[max],lat[min]]
+zoom='on'#'on'
+zoom_area=[-5,-82,60,20]#[lon[max],lon[min],lat[max],lat[min]]
 #####drifter data 
 
 dtimes=[]
@@ -78,9 +78,8 @@ for n in idlist:
                     points['lons'].extend([lon]); points['lats'].extend([lat]);
                     points['ids'].extend([n]);points['months'].extend([month]);points['days'].extend([day])   
         if zoom=='off':
-            #print syear
             time='20'+str(syear)+'-'+str(month)+'-'+str(day)+' '+str(hour)+':'+str(minute)
-            #print time    
+                
             dtimes.append(datetime.strptime(time, '%Y-%m-%d'+' '+'%H:%M' ))
         
 
@@ -90,8 +89,6 @@ for n in idlist:
                 #print 1
                 dtimes[-1]=dtimes[-1] + relativedelta(years=1)
                 syear=int(syear)+1
-                if syear==17:
-                    syear=16
 
 
             if dtimes[-1]>sttime and dtimes[-1]<end_time:
@@ -275,10 +272,11 @@ for i in idlist:
     times.append(np.array(ts)); ctime.append(np.array(ds)); toltime.extend(ds)
     lons.append(np.array(ddata[4])); lats.append(np.array(ddata[5]))
     loop_num.append(len(ddata[4]))
+    #print times
 #mintime = min(mint); maxtime = max(maxt)
 #mtime = range(mintime,maxtime+1)
 toltime = set(toltime); 
-toltime = list(toltime); toltime.sort(); print 'plotting...'
+toltime = list(toltime); toltime.sort(); print 'plotting...',len(toltime)
 
 
 
@@ -294,18 +292,14 @@ if result == 'plot':
     
 #compare to the 'animation','banimation' is more fit the file which have more drifter  or more data 
 if result == 'animation':
-    #print toltime
     ailoops = int((toltime[-1]-toltime[0])/showtimegap)
-    #print (toltime[-1]-toltime[0])
     print 'frame:',ailoops
     def animate(n):
-        
+        #print n
         del ax.lines[:]#del ax.collections[:]ax.cla()
-        #print n,toltime[-1]
 
-        supt = (start_time + n*timedelta(hours=showtimegap)).strftime('%Y-%m-%d')  
-          
-        drawst=start_time + timedelta(hours=showtimegap)
+        supt = (start_time + n*timedelta(hours=showtimegap)).strftime('%Y-%m-%d')          
+        drawst=start_time + n*timedelta(hours=showtimegap)
         drawend=drawst+timedelta(hours=linetime)
         #print supt        
         plt.suptitle('%s  \n date: %s'%(title,supt),fontsize=12)   
@@ -316,33 +310,33 @@ if result == 'animation':
             sindex = np.argmin(abs(std))
             etd=times[i]-drawend
             eindex = np.argmin(abs(etd))
+            print drawst,drawend,sindex,eindex
             seglength=eindex-sindex
-
+            print seglength
             c = colors[i%len(colors)]
             if track=='line':
-                
+                #print ctime[i],(toltime[0]+n*showtimegap)
     
-                abct = ctime[i] -(toltime[0]+n*showtimegap)
+                abct = ctime[i] - (toltime[0]+n*showtimegap)
                 #print abct
                 ni = np.argmin(abs(abct)); 
-                
+                #print ni
                 if ni<seglength:
 
                     while (ni>=0):
-                        if ni>9:
-                            ax.plot(lons[i][ni],lats[i][ni],'o',color=c,markersize=10,markeredgecolor = 'none')
+                        if ni>7:
+                            ax.plot(lons[i][ni],lats[i][ni],'o',color=c,markersize=8,markeredgecolor = 'none')
                         else:
                             ax.plot(lons[i][ni],lats[i][ni],'o',color=c,markersize=ni+1,markeredgecolor = 'none')
                         ni=ni-1
-
                 else:
-                    marksize=6
+                    marksize=7
                     for k in range(seglength):
                         if marksize==2:
                             pass
                         else:
                             marksize=marksize-1
-                        linew=marksize-1 
+                        linew=marksize-1.5      
                         ax.plot(lons[i][ni-k],lats[i][ni-k],'o-',color=c,markersize=marksize,markeredgecolor = 'none')
                         ax.plot([lons[i][ni-k-1],lons[i][ni-k]],[lats[i][ni-k-1],lats[i][ni-k]],'-', color=c,linewidth=linew)                           
 
@@ -374,10 +368,10 @@ if result == 'animation':
                         for k in range(seglength):
                             ax.plot(lons[i][ni-k],lats[i][ni-k],'o-',color=c,markersize=seglength-k,markeredgecolor = 'none')
 
-
+   
     
     if mapmethod=='etopo' or mapmethod=='bluemarble':
-        fig = plt.figure() #figsize=(16,12)
+        fig = plt.figure() #figsize=(10,9)
         #can use this to control where the picture is 
         ax = fig.add_subplot(111)
         draw_basemap(ax, points)  # points is using here
