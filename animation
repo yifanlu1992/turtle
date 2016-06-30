@@ -21,24 +21,27 @@ from matplotlib import animation
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 ##########hard code
-filename = 'drift_ep_2016_1.csv'#'drift_ep_2016_1.csv'
-title="Educational Passages Unmanned Sailboats"#the name you want show on the .gif
-sttime=datetime(2016,1,1)
-end_time=datetime(2016,6,23)
+filename = 'drift_X.csv'#'drift_ep_2016_1.csv'
+title="NOAA_drifters"#the name you want show on the .gif
+sttime=datetime(2015,1,1)
+end_time=datetime(2016,6,30)
 save_dir = './Results/'
 result ='animation'#plot  animation
 linetime=48#hour
-showtimegap=12
+showtime_period=12
 add_points=1#how many points want to add between two drifter points
-colors = ['cyan','olive','orange','magenta','red','purple','black','yellow']#,'green'
-mapmethod='etopo'#'etopo''usgs''bluemarble'#bluemarble and etopo both belong to basemap 
-track='line'#'point''line'
+colors = ['cyan','olive','orange','magenta','red','purple','black','blue']#,yellow'green'
+mapmethod='usgs'#'etopo''usgs''bluemarble'#bluemarble and etopo both belong to basemap 
+track='line'#'point''line''spline'
 zoom='on'#'on'
-zoom_area=[-5,-82,60,20]#[lon[max],lon[min],lat[max],lat[min]]
+zoom_area=[-66.5,-71,42.5,39.75]#[lon[max],lon[min],lat[max],lat[min]]
+bathymetric=[-200,-150,-100,-50,0]
+interval_lon=1
+interval_lat=1
 #####drifter data 
 
 dtimes=[]
-points = {'lats':[],'lons':[],'ids':[],'times':[],'months':[],'days':[]} 
+points = {'lats':[],'lons':[],'ids':[],'times':[],'months':[],'days':[],'depths':[]} 
 newfilename = 'new_%s' %filename
 df=pd.read_csv(filename,header=None,skiprows=1); #get the drifter data 
 ids = df[0][:] 
@@ -58,13 +61,14 @@ for n in idlist:
         day=ddata[3][i]
         hour=ddata[4][i]
         minute=ddata[5][i]
+        depth=ddata[9][i]
+        #print depth
         if zoom=='on':
-            if lon<=zoom_area[0] and lon>=zoom_area[1] and lat<zoom_area[2] and lat>zoom_area[3] :
-                
+            if lon<=zoom_area[0] and lon>=zoom_area[1] and lat<zoom_area[2] and lat>zoom_area[3] and depth<=-0.2 :
+                #print 1
                 time='20'+str(syear)+'-'+str(month)+'-'+str(day)+' '+str(hour)+':'+str(minute)
                 
                 dtimes.append(datetime.strptime(time, '%Y-%m-%d'+' '+'%H:%M' ))
-
                     
                 if len(dtimes)==1:
                     pass
@@ -74,7 +78,9 @@ for n in idlist:
                     #print dtimes[-1],dtimes[-2]
     
                 if dtimes[-1]>sttime and dtimes[-1]<end_time:
+                    #print dtimes[-1]
                     points['times'].extend([dtimes[-1]])#.strftime('%Y-%m-%d %H:%M'))
+                    points['depths'].extend([depth])
                     points['lons'].extend([lon]); points['lats'].extend([lat]);
                     points['ids'].extend([n]);points['months'].extend([month]);points['days'].extend([day])   
         if zoom=='off':
@@ -103,13 +109,14 @@ file_data.append(points['days'])
 file_data.append(points['times'])
 file_data.append(points['lons'])
 file_data.append(points['lats'])
+file_data.append(points['depths'])
 
 dr=map(list, zip(*file_data))
 
 ###make a list
 csvfile = file(newfilename, 'wb')
 writer = csv.writer(csvfile)
-writer.writerow(['ids', 'month', 'day','time','lon','lat'])
+writer.writerow(['ids', 'month', 'day','time','lon','lat','depth'])
 writer.writerows(dr)
 csvfile.close() 
 
@@ -119,32 +126,21 @@ idlist = set(ids); #the # of drifters
 print idlist
 
 #######basemap and function
-def draw_basemap(ax, points, interval_lon=10, interval_lat=10):#we use interval_lon control the longitude  tick labels
+def draw_basemap(ax,  interval_lon, interval_lat):#we use interval_lon control the longitude  tick labels
     '''
     use basemap function draw the map 
     we use interval_lon control the longitude tick labels on axis
     when we use 'etopo' ,the file will bigger than 'bluemarble' 
     '''
-    
-    lons = points['lons']
-    lats = points['lats']
-    size = max((max(lons)-min(lons)),(max(lats)-min(lats)))/25
-    size=size*2
-    '''map_lon = [-72,-65]
-    map_lat = [40,45]'''
-    map_lon = [min(lons)-size,max(lons)+size]
-    map_lat = [min(lats)-size,max(lats)+size]
-    
-    #ax = fig.sca(ax)
     dmap = Basemap(projection='cyl',
-                   llcrnrlat=map_lat[0], llcrnrlon=map_lon[0],
-                   urcrnrlat=map_lat[1], urcrnrlon=map_lon[1],
+                   llcrnrlat=zoom_area[3], llcrnrlon=zoom_area[1],
+                   urcrnrlat=zoom_area[2], urcrnrlon=zoom_area[0],
                    resolution='f',ax=ax)# resolution: c,l,i,h,f.
-    dmap.drawparallels(np.arange(int(map_lat[0])-1,
-                                 int(map_lat[1])+1,interval_lat),
+    dmap.drawparallels(np.arange(int(zoom_area[3]),
+                                 int(zoom_area[2]),interval_lat),
                        labels=[1,0,0,0])
-    dmap.drawmeridians(np.arange(int(map_lon[0])-1,
-                                 int(map_lon[1])+1,interval_lon),
+    dmap.drawmeridians(np.arange(int(zoom_area[1]),
+                                 int(zoom_area[0]),interval_lon),
                        labels=[0,0,0,1])
     #dmap.drawcoastlines()# draw the coast line
     dmap.fillcontinents(color='grey')
@@ -152,8 +148,6 @@ def draw_basemap(ax, points, interval_lon=10, interval_lat=10):#we use interval_
         dmap.etopo()#use this one make .gif file bigger than use bluemarble 
     elif mapmethod=='bluemarble':
         dmap.bluemarble()#choose this one or etopo
-    #dmap.drawmapboundary()
-
 
 def lat2str(deg):
     min = 60 * (deg - np.floor(deg))
@@ -184,47 +178,58 @@ def lon2str(deg):
       return (u"%d\N{DEGREE SIGN} %g' %s") % (np.abs(deg),np.abs(min),dir)
 
    
-def basemap_usgs(points,bathy,cont_range,ss):
+def basemap_usgs(bathy,cont_range,ss):
     #plot the coastline and, if bathy is True, bathymetry is plotted
     # lat and lon can be any list of positions in decimal degrees
     #parallels_interval is the tick interval on axis
     #cont_range is the depth contours to plot
     #ss is the subsample rate to make things quicker
-    lon = points['lons']
-    lat = points['lats']
 
+
+
+
+
+    #print map_lon,map_lat
+    #ax = fig.sca(ax)
+    dmap = Basemap(projection='cyl',
+                   llcrnrlat=zoom_area[3], llcrnrlon=zoom_area[1],
+                   urcrnrlat=zoom_area[2], urcrnrlon=zoom_area[0],
+                   resolution='f',ax=ax)# resolution: c,l,i,h,f.
+    dmap.drawparallels(np.arange(int(zoom_area[3]),
+                                 int(zoom_area[2]),interval_lat),
+                       labels=[1,0,0,0])
+    dmap.drawmeridians(np.arange(int(zoom_area[1]),
+                                 int(zoom_area[0]),interval_lon),
+                       labels=[0,0,0,1])
+    #dmap.drawcoastlines()# draw the coast line
+    dmap.fillcontinents(color='grey')
     #url='http://geoport.whoi.edu/thredds/dodsC/bathy/crm_vol1.nc'
-    def get_index_latlon():# use the function to calculate the minlat,minlon,maxlat,maxlon location
+    minlat=zoom_area[3]#-0.01
+    maxlat=zoom_area[2]#+0.01
+    minlon=zoom_area[1]#-0.01
+    maxlon=zoom_area[0]#+0.01
 
-        base_url='http://coastwatch.pfeg.noaa.gov/erddap/griddap/usgsCeSrtm30v6.nc?'
-        isub=1  # make isub =1 in production mode
-        if type(lat)!=float:
-          query='topo[(%f):%d:(%f)][(%f):%d:(%f)]' % (max(lat),isub,min(lat),min(lon),isub,max(lon))
-        else:
-          query='topo[(%f):%d:(%f)][(%f):%d:(%f)]' % (lat+3.1,isub,lat-3.1,lon-3.1,isub,lon+3.1)
-        url = base_url+query
-        file='usgsCeSrtm30v6.nc'
-        urllib.urlretrieve (url, file)
-        nc = netCDF4.Dataset(file)
-        ncv = nc.variables
+    base_url='http://coastwatch.pfeg.noaa.gov/erddap/griddap/usgsCeSrtm30v6.nc?'
+    isub=1  # make isub =1 in production mode
+
+    query='topo[(%f):%d:(%f)][(%f):%d:(%f)]' % (maxlat,isub,minlat,minlon,isub,maxlon)
+
+    url = base_url+query
+    file='usgsCeSrtm30v6.nc'
+    urllib.urlretrieve (url, file)
+    nc = netCDF4.Dataset(file)
+    ncv = nc.variables
+
+    basemap_lat=ncv['latitude'][:]
+    basemap_lon=ncv['longitude'][:]
+    basemap_topo=ncv['topo'][:]
+    #print basemap_lat
+
+    index_minlat=int(round(np.interp(zoom_area[3],basemap_lat,range(0,basemap_lat.shape[0]))))
+    index_maxlat=int(round(np.interp(zoom_area[2],basemap_lat,range(0,basemap_lat.shape[0]))))
+    index_minlon=int(round(np.interp(zoom_area[1],basemap_lon,range(0,basemap_lon.shape[0]))))
+    index_maxlon=int(round(np.interp(zoom_area[0],basemap_lon,range(0,basemap_lon.shape[0]))))
     
-        basemap_lat=ncv['latitude'][:]
-        basemap_lon=ncv['longitude'][:]
-        basemap_topo=ncv['topo'][:]
-        #print basemap_lat
-        # add the detail of basemap
-        minlat=min(lat)#-0.01
-        maxlat=max(lat)#+0.01
-        minlon=min(lon)#-0.01
-        maxlon=max(lon)#+0.01
-        index_minlat=int(round(np.interp(minlat,basemap_lat,range(0,basemap_lat.shape[0]))))
-        index_maxlat=int(round(np.interp(maxlat,basemap_lat,range(0,basemap_lat.shape[0]))))
-        index_minlon=int(round(np.interp(minlon,basemap_lon,range(0,basemap_lon.shape[0]))))
-        index_maxlon=int(round(np.interp(maxlon,basemap_lon,range(0,basemap_lon.shape[0]))))
-        return index_minlat,index_maxlat,index_minlon,index_maxlon,basemap_lat,basemap_lon,basemap_topo
-    
-    index_minlat,index_maxlat,index_minlon,index_maxlon,basemap_lat,basemap_lon,basemap_topo = get_index_latlon()
- 
     min_index_lat=min(index_minlat,index_maxlat)
     max_index_lat=max(index_minlat,index_maxlat)
     min_index_lon=min(index_minlon,index_maxlon)
@@ -242,9 +247,9 @@ def basemap_usgs(points,bathy,cont_range,ss):
 
     if min_index_lat==max_index_lat:
         print "No basemap_usgs data available for this area"
-    else: 
-        plt.contourf(X,Y,basemap_topo[min_index_lat:max_index_lat:ss,min_index_lon:max_index_lon:ss],[0,1000],colors='0.5')
-        
+    #else: 
+       #plt.contourf(X,Y,basemap_topo[min_index_lat:max_index_lat:ss,min_index_lon:max_index_lon:ss],[0,1000],colors='0.5')
+
 ########animation    
 if sttime<mintime   :
     start_time=mintime
@@ -292,14 +297,14 @@ if result == 'plot':
     
 #compare to the 'animation','banimation' is more fit the file which have more drifter  or more data 
 if result == 'animation':
-    ailoops = int((toltime[-1]-toltime[0])/showtimegap)
+    ailoops = int((toltime[-1]-toltime[0])/showtime_period)
     print 'frame:',ailoops
     def animate(n):
         #print n
         del ax.lines[:]#del ax.collections[:]ax.cla()
 
-        supt = (start_time + n*timedelta(hours=showtimegap)).strftime('%Y-%m-%d')          
-        drawst=start_time + n*timedelta(hours=showtimegap)
+        supt = (start_time + n*timedelta(hours=showtime_period)).strftime('%Y-%m-%d')          
+        drawst=start_time + n*timedelta(hours=showtime_period)
         drawend=drawst+timedelta(hours=linetime)
         #print supt        
         plt.suptitle('%s  \n date: %s'%(title,supt),fontsize=12)   
@@ -310,14 +315,14 @@ if result == 'animation':
             sindex = np.argmin(abs(std))
             etd=times[i]-drawend
             eindex = np.argmin(abs(etd))
-            print drawst,drawend,sindex,eindex
+
             seglength=eindex-sindex
-            print seglength
+
             c = colors[i%len(colors)]
             if track=='line':
                 #print ctime[i],(toltime[0]+n*showtimegap)
     
-                abct = ctime[i] - (toltime[0]+n*showtimegap)
+                abct = ctime[i] - (toltime[0]+n*showtime_period)
                 #print abct
                 ni = np.argmin(abs(abct)); 
                 #print ni
@@ -368,24 +373,53 @@ if result == 'animation':
                         for k in range(seglength):
                             ax.plot(lons[i][ni-k],lats[i][ni-k],'o-',color=c,markersize=seglength-k,markeredgecolor = 'none')
 
-   
+            elif track=='spline':
+                abct = ctime[i] - (toltime[0]+n*showtime_period)
+                #print abct
+                ni = np.argmin(abs(abct)); 
+                #print ni
+                if seglength<4:
+                    ax.plot(lons[i][ni],lats[i][ni],'o',color=c,markersize=ni+1,markeredgecolor = 'none')
+                else:
+                    if ni<seglength:
     
+                        while (ni>=0):
+                            if ni>7:
+                                ax.plot(lons[i][ni],lats[i][ni],'o',color=c,markersize=8,markeredgecolor = 'none')
+                            else:
+                                ax.plot(lons[i][ni],lats[i][ni],'o',color=c,markersize=ni+1,markeredgecolor = 'none')
+                            ni=ni-1
+                    else:
+                        marksize=7
+                        for k in range(seglength):
+                            if marksize==2:
+                                pass
+                            else:
+                                marksize=marksize-1
+                            linew=marksize-1.5      
+                            ax.plot(lons[i][ni-k],lats[i][ni-k],'o-',color=c,markersize=marksize,markeredgecolor = 'none')
+                            ax.plot([lons[i][ni-k-1],lons[i][ni-k]],[lats[i][ni-k-1],lats[i][ni-k]],'-', color=c,linewidth=linew)                           
+    
+        
     if mapmethod=='etopo' or mapmethod=='bluemarble':
         fig = plt.figure() #figsize=(10,9)
         #can use this to control where the picture is 
         ax = fig.add_subplot(111)
-        draw_basemap(ax, points)  # points is using here
-        print 1
+        draw_basemap(ax, interval_lon,interval_lat)  # points is using here
         anim = animation.FuncAnimation(fig, animate, frames=ailoops, interval=100) 
     elif mapmethod=='usgs':
-        fig = plt.figure(figsize=(10,9)) #figsize=(16,12)
+        fig = plt.figure() #figsize=(16,12)
         #can use this to control where the picture is 
         ax = fig.add_subplot(111)
-        basemap_usgs(points,True,[-40,-30,-20,-10,0],1)
+        basemap_usgs(True,bathymetric,1)
         thismanager3 = pylab.get_current_fig_manager()
         anim = animation.FuncAnimation(fig, animate, frames=ailoops, interval=100) 
+    
     en_run_time = datetime.now()
     # mencoder,imagemagick,ffmpeg
-anim.save(save_dir+'%s.gif'%(filename[:-4]),writer='imagemagick',dpi=100)#file name
+if zoom=='on':
+    anim.save(save_dir+'%s_zoom.gif'%(filename[:-4]),writer='imagemagick',dpi=100)#file name
+else:
+    anim.save(save_dir+'%s.gif'%(filename[:-4]),writer='imagemagick',dpi=100)#file name
 plt.show()
 
