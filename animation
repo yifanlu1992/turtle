@@ -9,7 +9,7 @@ from scipy import interpolate
 import csv
 import urllib
 import netCDF4
-import sys
+from math import radians, cos, sin, atan, sqrt  
 from decimal import *
 import numpy as np
 import matplotlib.pyplot as plt
@@ -20,28 +20,30 @@ import pandas as pd
 from matplotlib import animation
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
+from matplotlib.dates import date2num,num2date
 ##########hard code
-filename = 'drift_vims_2016_2.dat'#'drift_ep_2016_1.csv'
-title="Virginia Institute of Marine Studies drifters"#the name you want show on the .gif
-sttime=datetime(2016,1,1)
-end_time=datetime(2016,6,30)
-#save_dir = './Results/'
+filename = 'drift_X.dat'#'drift_ep_2016_1.csv'
+title="Effect of Easterly Winds"#the name you want show on the .gif
+sttime=datetime(2016,7,1)
+end_time=datetime(2016,7,11)
+save_dir = './Results/'
 result ='animation'#plot  animation
-linetime=12#hour
-showtime_period=1
+linetime=48#hour
+showtime_period=4
 add_points=1#how many points want to add between two drifter points
 colors = ['cyan','olive','orange','magenta','red','purple','black','blue']#,yellow'green'
-mapmethod='etopo'#'etopo''usgs''bluemarble'#bluemarble and etopo both belong to basemap 
-track='line'#'point''line''spline'
+mapmethod='usgs'#'etopo''usgs''bluemarble'#bluemarble and etopo both belong to basemap 
+track='vi'#'point''line''spline'
 zoom='on'#'on'
-zoom_area=[-76.1,-76.5,37.3,37.1]#[lon[max],lon[min],lat[max],lat[min]]
-bathymetric=[-25,-20,-15,-10,-5]
-interval_lon=0.1
-interval_lat=0.1
-#####drifter data 
+data_type='raw'#'raw''hourly'
+zoom_area=[-70.3,-70.9,42.9,42.1]#[lon[max],lon[min],lat[max],lat[min]]
+bathymetric=[-150,-120,-90,-60,-30]
+interval_lon=0.25
+interval_lat=0.25
+#####select drifter data 
 
 dtimes=[]
-points = {'lats':[],'lons':[],'ids':[],'times':[],'months':[],'days':[],'depths':[]} 
+points = {'lats':[],'lons':[],'ids':[],'times':[],'months':[],'days':[],'depths':[],'YEARDAY':[]} 
 newfilename = 'new_%s' %filename
 df=pd.read_csv(filename,header=None,skiprows=1); #get the drifter data 
 ids = df[0][:] 
@@ -54,6 +56,7 @@ for n in idlist:
 
     dtimes=[]
     syear=str(ddata[0][index[0]])[0:2]
+    #print syear,n
     for i in index:
         lon=ddata[7][i]
         lat=ddata[8][i]
@@ -62,25 +65,24 @@ for n in idlist:
         hour=ddata[4][i]
         minute=ddata[5][i]
         depth=ddata[9][i]
-        #print depth
+        YEARDAY=ddata[6][i]
+        time='20'+str(syear)+'-'+str(month)+'-'+str(day)+' '+str(hour)+':'+str(minute)
+        #print time
+        dtimes.append(datetime.strptime(time, '%Y-%m-%d'+' '+'%H:%M' ))
+        if len(dtimes)==1:
+            pass
+        elif dtimes[-1]<dtimes[-2]:
+            dtimes[-1]=dtimes[-1] + relativedelta(years=1)
+            syear=int(syear)+1
+            
+            
         if zoom=='on':
             if lon<=zoom_area[0] and lon>=zoom_area[1] and lat<zoom_area[2] and lat>zoom_area[3] and depth<=-0.2 :
-                #print 1
-                time='20'+str(syear)+'-'+str(month)+'-'+str(day)+' '+str(hour)+':'+str(minute)
-                
-                dtimes.append(datetime.strptime(time, '%Y-%m-%d'+' '+'%H:%M' ))
-                    
-                if len(dtimes)==1:
-                    pass
-                elif dtimes[-1]<dtimes[-2]:
-                    dtimes[-1]=dtimes[-1] + relativedelta(years=1)
-                    syear=int(syear)+1
-                    #print dtimes[-1],dtimes[-2]
-    
                 if dtimes[-1]>sttime and dtimes[-1]<end_time:
                     #print dtimes[-1]
                     points['times'].extend([dtimes[-1]])#.strftime('%Y-%m-%d %H:%M'))
                     points['depths'].extend([depth])
+                    points['YEARDAY'].extend([YEARDAY])
                     points['lons'].extend([lon]); points['lats'].extend([lat]);
                     points['ids'].extend([n]);points['months'].extend([month]);points['days'].extend([day])   
         if zoom=='off':
@@ -91,14 +93,13 @@ for n in idlist:
             if len(dtimes)==1:
                 pass
             elif dtimes[-1]<dtimes[-2]:
-                print time  
                 dtimes[-1]=dtimes[-1] + relativedelta(years=1)
                 syear=int(syear)+1
 
 
             if dtimes[-1]>sttime and dtimes[-1]<end_time:
                 points['times'].extend([dtimes[-1]])#.strftime('%Y-%m-%d %H:%M'))
-                points['lons'].extend([lon]); points['lats'].extend([lat]);points['depths'].extend([depth])
+                points['lons'].extend([lon]); points['lats'].extend([lat]);points['depths'].extend([depth]);points['YEARDAY'].extend([YEARDAY])
                 points['ids'].extend([n]);points['months'].extend([month]);points['days'].extend([day])   
 mintime=min(points['times'])     
 #print mintime   
@@ -108,14 +109,15 @@ file_data.append(points['days'])
 file_data.append(points['times'])
 file_data.append(points['lons'])
 file_data.append(points['lats'])
+file_data.append(points['YEARDAY'])
 file_data.append(points['depths'])
-#print points['depths']
+
 dr=map(list, zip(*file_data))
 
-###make a list
+###make a newfile about all right data
 csvfile = file(newfilename, 'wb')
 writer = csv.writer(csvfile)
-writer.writerow(['ids', 'month', 'day','time','lon','lat','depth'])
+writer.writerow(['ids', 'month', 'day','time','lon','lat','YEARDAY','depth'])
 writer.writerows(dr)
 csvfile.close() 
 
@@ -125,6 +127,66 @@ idlist = set(ids); #the # of drifters
 print idlist
 
 #######basemap and function
+def haversine(lon1, lat1, lon2, lat2): 
+    """ 
+    Calculate the great circle distance between two points  
+    on the earth (specified in decimal degrees) 
+    """   
+    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])  
+    #print 34
+    dlon = lon2 - lon1   
+    dlat = lat2 - lat1   
+    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2  
+    c = 2 * atan(sqrt(a)/sqrt(1-a))   
+    r = 6371 
+    d=c * r
+    #print type(d)
+    return d
+def get_nc_data(url, *args):
+    '''
+    get specific dataset from url
+
+    *args: dataset name, composed by strings
+    ----------------------------------------
+    example:
+        url = 'http://www.nefsc.noaa.gov/drifter/drift_tcs_2013_1.dat'
+        data = get_url_data(url, 'u', 'v')
+    '''
+    nc = netCDF4.Dataset(url)
+    data = {}
+    for arg in args:
+        try:
+            data[arg] = nc.variables[arg]
+        except (IndexError, NameError, KeyError):
+            print 'Dataset {0} is not found'.format(arg)
+    #print data
+    return data
+def nearpoint_index(lat,lon):
+    '''get the nearest point index from fvcom wind model'''
+    #print lat,lon
+    dists=[];points=[]
+    url_wind="""http://www.smast.umassd.edu:8080/thredds/dodsC/models/fvcom/NECOFS/Forecasts/NECOFS_MET_HINDCAST.nc?XLAT[0:1:140][0:1:182],XLONG[0:1:140][0:1:182]"""  #%(year,ftime,stime,lats,lats,lons,lons)
+    vdata=get_nc_data(url_wind,'XLAT','XLONG')
+    LAT=vdata['XLAT'][:];LON=vdata['XLONG'][:]
+
+
+    for a in range(140):#have 141 group data
+        #print max(LAT[a]), min(LAT[a]) ,max(LON[a]) ,min(LON[a]),lat,lon
+        if lat<max(LAT[a]) and lat>min(LAT[a]) and lon<max(LON[a]) and lon>min(LON[a]):
+            for o in range(182):#every group have 182 data
+                if lon-0.1<LON[a][o]<lon+0.1 and lat-0.1<LAT[a][o]<lat+0.1:
+                    print a,o,LON[a][o],LAT[a][o]
+                    points.append((a,o))
+                    dist=haversine(LON[a][o],LAT[a][o],lon,lat)
+                    dists.append(dist)
+    if len(dists)>1:
+        for i in range(len(dists)):
+            print dists[i]-min(dists)
+            if dists[i]-min(dists)<0.001:
+                index=i
+    else :
+        print "something wrong"
+    return points[index]
 def draw_basemap(ax, points, interval_lon, interval_lat):#we use interval_lon control the longitude  tick labels
     '''
     use basemap function draw the map 
@@ -262,34 +324,102 @@ def basemap_usgs(points,bathy,cont_range,ss):
         print "No basemap_usgs data available for this area"
     #else: 
        #plt.contourf(X,Y,basemap_topo[min_index_lat:max_index_lat:ss,min_index_lon:max_index_lon:ss],[0,1000],colors='0.5')
+def sh_interp3(ti,t,f):
+    """
+    interpolates irragularly spaced 1D data to uniform grid
+    using cubuc Hermite spline.
+    http://en.wikipedia.org/wiki/Cubic_Hermite_spline
+    tangents are defined as a finite difference approximation of derivative
+    interpolation formula is expressed in terms of 
+    Bernstein polynomials of 3rd order: B_0,B_1,B_2,B_3.
+    """
+    m=f*0. # derivative
+    N=len(f)
+    for i in range(1,N-1):
+# In this version the tangent m is a plain average of differences from two sides
+# which is not consistent with the finite difference
+# approximation of a derivative on a nonuniform grid
+#        m[i]=((f[i+1]-f[i])/(t[i+1]-t[i])+(f[i]-f[i-1])/(t[i]-t[i-1]))*0.5
+# This version of the tangent m is the finite difference
+# approximation of a derivative on a nonuniform grid 
 
+        ha=t[i+1]-t[i]
+        hb=t[i]-t[i-1]        
+        m[i]=((f[i+1]-f[i])*hb/ha+(f[i]-f[i-1])*ha/hb)/(ha+hb)
+    # ends
+    m[0]  =2.*(f[1]  -f[0])  /(t[1]  -t[0])  -m[1]
+    m[N-1]=2.*(f[N-1]-f[N-2])/(t[N-1]-t[N-2])-m[N-2]    
+        
+    # 
+    fi=ti*0.
+    NN=len(ti)
+    for ii in range(NN):
+        i=max(np.argwhere(t<=ti[ii])) # left end of segment
+        dt=t[i+1]-t[i]
+        a=(ti[ii]-t[i])/dt  # 0<a<1 normalized coordinate within a segment 
+        b=1.-a
+        # multiply f and m*dt must have the same dimensions
+        fi[ii]=(b*b*b+3.*a*b*b)*f[i]+(a*a*a+3.*b*a*a)*f[i+1]+(a*b*b*m[i]-b*a*a*m[i+1])*dt
+
+    return fi
 ########animation    
 if sttime<mintime   :
     start_time=mintime
 else:
     start_time=sttime
-points = {'lats':[],'lons':[]}  # collect all points we've gained
-lons = []; lats = []; loop_num = []; times =[]; ctime = []; toltime = [] #mint = []; maxt = []
+points_all= {'lats':[],'lons':[]} 
+points= {'lats':[],'lons':[],'times':[]}  
+yearday=[];lons = []; lats = []; loop_num = []; times =[]; ctime = []; toltime = [] #mint = []; maxt = []
 
 for i in idlist:
+
     index = np.where(df[0]==i)[0]
     ddata = df.ix[index]; 
-    points['lons'].extend(ddata[4]); points['lats'].extend(ddata[5])
-    ts = []; ds = []
-    year=start_time.year
-    for j in range(len(ddata)):
-
-        strt=ddata[3][index[j]]
-        temptime = datetime.strptime(strt,'%Y-%m-%d'+' '+'%H:%M:%S')
-        ts.append(temptime) #'''
-        ths = (temptime - start_time).total_seconds()/3600
-        ds.append(int(round(ths)))
-
+    if data_type=='raw':
         
-    #mint.append(min(ds)); maxt.append(max(ds))
-    times.append(np.array(ts)); ctime.append(np.array(ds)); toltime.extend(ds)
-    lons.append(np.array(ddata[4])); lats.append(np.array(ddata[5]))
-    loop_num.append(len(ddata[4]))
+        points_all['lons'].extend(ddata[4]); points_all['lats'].extend(ddata[5]);yearday.extend(ddata[6])
+        ts = []; ds = []
+        for j in range(len(ddata)):
+    
+            strt=ddata[3][index[j]]
+            temptime = datetime.strptime(strt,'%Y-%m-%d'+' '+'%H:%M:%S')
+            ts.append(temptime) #'''
+            ths = (temptime - start_time).total_seconds()/3600
+            ds.append(int(round(ths)))
+    
+            
+        #mint.append(min(ds)); maxt.append(max(ds))
+        times.append(np.array(ts)); ctime.append(np.array(ds)); toltime.extend(ds)
+        lons.append(np.array(ddata[4])); lats.append(np.array(ddata[5]))
+
+    elif data_type=='hourly':
+        points['lons'].extend(ddata[4]); points['lats'].extend(ddata[5]); points['times'].extend(ddata[3])
+        points_all['lons'].extend(ddata[4]); points_all['lats'].extend(ddata[5]);yearday.extend(ddata[6])
+        ts = []; ds = [];rawtime=[]
+        for t in range(len(points['times'])):
+            
+            rawtime.append(date2num(datetime.strptime(points['times'][t],'%Y-%m-%d'+' '+'%H:%M:%S')))
+
+        st=date2num(datetime.strptime(points['times'][0],'%Y-%m-%d'+' '+'%H:%M:%S'))
+        et=date2num(datetime.strptime(points['times'][-1],'%Y-%m-%d'+' '+'%H:%M:%S'))
+        t1=np.ceil(st*24.)/24.
+        t2=np.floor(et*24.)/24.
+        tdh=np.arange(t1,t2,1./24.)
+        #print np.array(tdh),np.array(points['times'])
+        latdh=sh_interp3(np.array(tdh),np.array(rawtime),np.array(points['lats']))
+        londh=sh_interp3(np.array(tdh),np.array(rawtime),np.array(points['lons']))
+        for j in range(len(tdh)):
+            #print 1,start_time.month,tdh[j]
+            temptime=num2date(tdh[j]).replace(tzinfo=None)
+            ts.append(temptime)
+            ths = (datetime(2016,1,1)+timedelta(tdh[j]) - start_time).total_seconds()/3600
+            ds.append(int(round(ths)))
+
+            
+        #mint.append(min(ds)); maxt.append(max(ds))
+        times.append(np.array(ts)); ctime.append(np.array(ds)); toltime.extend(ds)
+        lons.append(londh); lats.append(latdh)
+        points= {'lats':[],'lons':[],'times':[]} 
     #print times
 #mintime = min(mint); maxtime = max(maxt)
 #mtime = range(mintime,maxtime+1)
@@ -316,14 +446,30 @@ if result == 'animation':
         #print n
         del ax.lines[:]#del ax.collections[:]ax.cla()
 
-        supt = (start_time + n*timedelta(hours=showtime_period)).strftime('%Y-%m-%d')          
+        supt = (start_time + n*timedelta(hours=showtime_period)).strftime('%Y-%m-%d')  
+       
         drawst=start_time + n*timedelta(hours=showtime_period)
         drawend=drawst+timedelta(hours=linetime)
         #print supt        
         plt.suptitle('%s  \n date: %s'%(title,supt),fontsize=12)   
+
+
+        '''index=nearpoint_index(0.5*(zoom_area[2]+zoom_area[3]),0.5*(zoom_area[0]+zoom_area[1]))
         
+        cptime="2016,06,29,00,00" 
+        cptimes=datetime.strptime(cptime, '%Y,%m,%d,%H,%M')
+        print start_time + n*timedelta(hours=showtime_period),(start_time + n*timedelta(hours=showtime_period)-cptimes)
+        time_s=(start_time + n*timedelta(hours=showtime_period)-cptimes).total_seconds()
+        print time_s
+        timeindex=int(time_s/60/60)
+
+
+        url_wind="""http://www.smast.umassd.edu:8080/thredds/dodsC/models/fvcom/NECOFS/Forecasts/NECOFS_MET_HINDCAST.nc?U10[%i:1:%i][%i:1:%i][%i:1:%i],V10[%i:1:%i][%i:1:%i][%i:1:%i]"""  %(timeindex,timeindex,index[0],index[0],index[1],index[1],timeindex,timeindex,index[0],index[0],index[1],index[1])
+        print url_wind
+        data=get_nc_data(url_wind,'V10','U10')
+        v_wind=data['V10'][:];u_wind=data['U10'][:]
+        print v_wind[0][0][0]'''
         for i in range(len(lons)): #loop drifters
-            print i
             std=times[i]-drawst
             sindex = np.argmin(abs(std))
             etd=times[i]-drawend
@@ -334,30 +480,63 @@ if result == 'animation':
             c = colors[i%len(colors)]
             if track=='line':
                 abct = ctime[i] - (toltime[0]+n*showtime_period)
-                print n,toltime[0]+n*showtime_period
+                #print n,toltime[0]+n*showtime_period
                 ni = np.argmin(abs(abct)); 
 
-                if ni<seglength:
-                    #print 1
-                    while (ni>=0):
-                        if ni>7:
-                            ax.plot(lons[i][ni],lats[i][ni],'o',color=c,markersize=8,markeredgecolor = 'none')
-                        else:
-                            ax.plot(lons[i][ni],lats[i][ni],'o',color=c,markersize=ni+1,markeredgecolor = 'none')
-                        ni=ni-1
-                else:
-                    #print 2
-                    marksize=7
-                    for k in range(seglength):
-                        if marksize==2:
-                            pass
-                        else:
-                            marksize=marksize-1
-                        linew=marksize-1.5      
-                        ax.plot(lons[i][ni-k],lats[i][ni-k],'o-',color=c,markersize=marksize,markeredgecolor = 'none')
-                        ax.plot([lons[i][ni-k-1],lons[i][ni-k]],[lats[i][ni-k-1],lats[i][ni-k]],'-', color=c,linewidth=linew)                           
-    
+                marksize=6
+                for k in range(min(seglength,ni)):
+                    marksize=6-float((6*k)/seglength)
 
+                    #linew=marksize-1.5      
+                    ax.plot(lons[i][ni],lats[i][ni],'o',color=c,markersize=marksize+2,markeredgecolor = 'none')
+                    ax.plot([lons[i][ni-k-1],lons[i][ni-k]],[lats[i][ni-k-1],lats[i][ni-k]],'-', color=c,linewidth=marksize)                           
+        
+                    '''elif track=='spline':
+                        abct = ctime[i] - (toltime[0]+n*showtime_period)
+                        #print abct
+                        ni = np.argmin(abs(abct)); 
+                        #print ni
+                        marksize=6
+                        for k in range(min(seglength,ni)):
+                            if k<4:
+                                marksize=6-float((6*k)/seglength)
+            
+                                #linew=marksize-1.5      
+                                ax.plot(lons[i][ni],lats[i][ni],'o',color=c,markersize=marksize+2,markeredgecolor = 'none')
+                                ax.plot([lons[i][ni-k-1],lons[i][ni-k]],[lats[i][ni-k-1],lats[i][ni-k]],'-', color=c,linewidth=marksize)                           
+                            else:
+                                a=[]
+                                b=[]
+                                for k in range(4,seglength):
+                                    #print k
+                                    marksize=6-float((6*k)/seglength)
+                                    
+                                    lon=lons[i][ni-4:ni+1]
+                                    lat=lats[i][ni-4:ni+1]
+                                    
+                                    tck,u= interpolate.splprep([lon,lat], s=0)
+                                    print tck,u
+                                    unew = np.arange(0, 1.01, 0.05)
+                                    out = interpolate.splev(unew, tck)
+                                    #print out
+                                    a.extend(out[0])
+                                    b.extend(out[1])
+                                    ax.plot( a, b, 'bo-',color=c,markersize=marksize,markeredgecolor = 'none')
+                                    plt.show'''
+            elif track=='vi':
+                abct = ctime[i] - (toltime[0]+n*showtime_period)
+                #print n,toltime[0]+n*showtime_period
+                ni = np.argmin(abs(abct)); 
+
+                marksize=6
+                for k in range(min(seglength,ni)):
+                    marksize=6-float((6*k)/seglength)
+                    #latd=np.array(lats[i])
+                    #lond=np.array(lons[i])
+                    #linew=marksize-1.5      
+                    ax.plot(lons[i][ni],lats[i][ni],'o',color=c,markersize=marksize+2,markeredgecolor = 'none')
+                    ax.plot([lons[i][ni-k-1],lons[i][ni-k]],[lats[i][ni-k-1],lats[i][ni-k]],'-', color=c,linewidth=marksize)                           
+        
             elif track=='point':
                 if toltime[n] > ctime[i][-1]:
                     if toltime[n-seglength]<ctime[i][-1]:
@@ -386,60 +565,25 @@ if result == 'animation':
                         for k in range(seglength):
                             ax.plot(lons[i][ni-k],lats[i][ni-k],'o-',color=c,markersize=seglength-k,markeredgecolor = 'none')
 
-            elif track=='spline':
-                abct = ctime[i] - (toltime[0]+n*showtime_period)
-                #print abct
-                ni = np.argmin(abs(abct)); 
-                #print ni
-                if ni<seglength:
-                    print 1
-                    while (ni>=0):
-                        if ni>7:
-                            ax.plot(lons[i][ni],lats[i][ni],'o',color=c,markersize=8,markeredgecolor = 'none')
-                        else:
-                            ax.plot(lons[i][ni],lats[i][ni],'o',color=c,markersize=ni+1,markeredgecolor = 'none')
-                        ni=ni-1
-                else:
-                    print 2
-                    if seglength<4:
-                        ax.plot(lons[i][ni],lats[i][ni],'o',color=c,markersize=ni+1,markeredgecolor = 'none')
-                    else:
-                        marksize=5
-                        for k in range(4,seglength):
-                            print k
-                            if marksize==1:
-                                    pass
-                            else:
-                                marksize=marksize-1
-                            
-                            lon=lons[i][ni-4:ni+1]
-                            lat=lats[i][ni-4:ni+1]
-                            
-                            tck,u= interpolate.splprep([lon,lat], s=0)
-                            #print tck,u
-                            unew = np.arange(0, 1.01, 0.05)
-                            out = interpolate.splev(unew, tck)
-                            #print out
-                            a.extend(out[0])
-                            b.extend(out[1])
-                            plt.plot( a, b, 'bo-',color=c,markersize=marksize,markeredgecolor = 'none')
-                            
+            
                     
         
     if mapmethod=='etopo' or mapmethod=='bluemarble':
         fig = plt.figure() #figsize=(10,9)
         #can use this to control where the picture is 
         ax = fig.add_subplot(111)
-        draw_basemap(ax,points, interval_lon,interval_lat)  # points is using here
+        draw_basemap(ax,points_all, interval_lon,interval_lat)  # points is using here
+
         anim = animation.FuncAnimation(fig, animate, frames=ailoops, interval=100) 
     elif mapmethod=='usgs':
         fig = plt.figure() #figsize=(16,12)
         #can use this to control where the picture is 
         ax = fig.add_subplot(111)
-        basemap_usgs(points,True,bathymetric,1)
+        basemap_usgs(points_all,True,bathymetric,1)
         thismanager3 = pylab.get_current_fig_manager()
+
         anim = animation.FuncAnimation(fig, animate, frames=ailoops, interval=100) 
-    
+
     en_run_time = datetime.now()
     # mencoder,imagemagick,ffmpeg
 if zoom=='on':
