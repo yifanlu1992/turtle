@@ -23,23 +23,23 @@ from dateutil.relativedelta import relativedelta
 from matplotlib.dates import date2num,num2date
 ##########hard code
 filename = 'drift_X.dat'#'drift_ep_2016_1.csv'
-title="Effect of Easterly Winds"#the name you want show on the .gif
-sttime=datetime(2016,7,1)
-end_time=datetime(2016,7,11)
+title="Watch the Gulf stream spawn a 'cold core ring'"#the name you want show on the .gif
+sttime=datetime(2016,3,1)
+end_time=datetime(2016,7,18)
 save_dir = './Results/'
 result ='animation'#plot  animation
 linetime=48#hour
-showtime_period=4
+showtime_period=12
 add_points=1#how many points want to add between two drifter points
 colors = ['cyan','olive','orange','magenta','red','purple','black','blue']#,yellow'green'
-mapmethod='usgs'#'etopo''usgs''bluemarble'#bluemarble and etopo both belong to basemap 
-track='vi'#'point''line''spline'
+mapmethod='etopo'#'etopo''usgs''bluemarble'#bluemarble and etopo both belong to basemap 
+track='line'#'point''line'
 zoom='on'#'on'
-data_type='raw'#'raw''hourly'
-zoom_area=[-70.3,-70.9,42.9,42.1]#[lon[max],lon[min],lat[max],lat[min]]
-bathymetric=[-150,-120,-90,-60,-30]
-interval_lon=0.25
-interval_lat=0.25
+data_type='hourly'#'raw''hourly'
+zoom_area=[-60,-73,41,35]#[lon[max],lon[min],lat[max],lat[min]]
+bathymetric=[-250,-200,-150,-100,-50]
+interval_lon=2
+interval_lat=1
 #####select drifter data 
 
 dtimes=[]
@@ -73,6 +73,7 @@ for n in idlist:
             pass
         elif dtimes[-1]<dtimes[-2]:
             dtimes[-1]=dtimes[-1] + relativedelta(years=1)
+            print dtimes[-1]
             syear=int(syear)+1
             
             
@@ -396,25 +397,33 @@ for i in idlist:
         points['lons'].extend(ddata[4]); points['lats'].extend(ddata[5]); points['times'].extend(ddata[3])
         points_all['lons'].extend(ddata[4]); points_all['lats'].extend(ddata[5]);yearday.extend(ddata[6])
         ts = []; ds = [];rawtime=[]
-        for t in range(len(points['times'])):
-            
-            rawtime.append(date2num(datetime.strptime(points['times'][t],'%Y-%m-%d'+' '+'%H:%M:%S')))
-
-        st=date2num(datetime.strptime(points['times'][0],'%Y-%m-%d'+' '+'%H:%M:%S'))
-        et=date2num(datetime.strptime(points['times'][-1],'%Y-%m-%d'+' '+'%H:%M:%S'))
-        t1=np.ceil(st*24.)/24.
-        t2=np.floor(et*24.)/24.
-        tdh=np.arange(t1,t2,1./24.)
-        #print np.array(tdh),np.array(points['times'])
-        latdh=sh_interp3(np.array(tdh),np.array(rawtime),np.array(points['lats']))
-        londh=sh_interp3(np.array(tdh),np.array(rawtime),np.array(points['lons']))
-        for j in range(len(tdh)):
-            #print 1,start_time.month,tdh[j]
-            temptime=num2date(tdh[j]).replace(tzinfo=None)
-            ts.append(temptime)
-            ths = (datetime(2016,1,1)+timedelta(tdh[j]) - start_time).total_seconds()/3600
-            ds.append(int(round(ths)))
-
+        if len(points['times'])>2:
+            for t in range(len(points['times'])):
+                
+                rawtime.append(date2num(datetime.strptime(points['times'][t],'%Y-%m-%d'+' '+'%H:%M:%S')))
+    
+            st=date2num(datetime.strptime(points['times'][0],'%Y-%m-%d'+' '+'%H:%M:%S'))
+            et=date2num(datetime.strptime(points['times'][-1],'%Y-%m-%d'+' '+'%H:%M:%S'))
+            t1=np.ceil(st*24.)/24.
+            t2=np.floor(et*24.)/24.
+            tdh=np.arange(t1,t2,1./24.)
+            #print np.array(tdh),np.array(points['times'])
+            latdh=sh_interp3(np.array(tdh),np.array(rawtime),np.array(points['lats']))
+            londh=sh_interp3(np.array(tdh),np.array(rawtime),np.array(points['lons']))
+            for j in range(len(tdh)):
+                #print 1,start_time.month,tdh[j]
+                temptime=num2date(tdh[j]).replace(tzinfo=None)
+                ts.append(temptime)
+                ths = (datetime(2016,1,1)+timedelta(tdh[j]) - start_time).total_seconds()/3600
+                ds.append(int(round(ths)))
+        else:
+            for j in range(len(ddata)):
+    
+                strt=ddata[3][index[j]]
+                temptime = datetime.strptime(strt,'%Y-%m-%d'+' '+'%H:%M:%S')
+                ts.append(temptime) #'''
+                ths = (temptime - start_time).total_seconds()/3600
+                ds.append(int(round(ths)))
             
         #mint.append(min(ds)); maxt.append(max(ds))
         times.append(np.array(ts)); ctime.append(np.array(ds)); toltime.extend(ds)
@@ -523,20 +532,7 @@ if result == 'animation':
                                     b.extend(out[1])
                                     ax.plot( a, b, 'bo-',color=c,markersize=marksize,markeredgecolor = 'none')
                                     plt.show'''
-            elif track=='vi':
-                abct = ctime[i] - (toltime[0]+n*showtime_period)
-                #print n,toltime[0]+n*showtime_period
-                ni = np.argmin(abs(abct)); 
-
-                marksize=6
-                for k in range(min(seglength,ni)):
-                    marksize=6-float((6*k)/seglength)
-                    #latd=np.array(lats[i])
-                    #lond=np.array(lons[i])
-                    #linew=marksize-1.5      
-                    ax.plot(lons[i][ni],lats[i][ni],'o',color=c,markersize=marksize+2,markeredgecolor = 'none')
-                    ax.plot([lons[i][ni-k-1],lons[i][ni-k]],[lats[i][ni-k-1],lats[i][ni-k]],'-', color=c,linewidth=marksize)                           
-        
+            
             elif track=='point':
                 if toltime[n] > ctime[i][-1]:
                     if toltime[n-seglength]<ctime[i][-1]:
