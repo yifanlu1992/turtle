@@ -3,13 +3,13 @@
 Created on Fri May  6 13:39:13 2016
 animation
 use website .csv data
-@author: qianran
+@author: qzhang
 """
-from scipy import interpolate
+
 import csv
 import urllib
 import netCDF4
-from math import radians, cos, sin, atan, sqrt  
+import sys
 from decimal import *
 import numpy as np
 import matplotlib.pyplot as plt
@@ -20,27 +20,26 @@ import pandas as pd
 from matplotlib import animation
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
-from matplotlib.dates import date2num,num2date
 ##########hard code
-filename = 'drift_X.dat'#'drift_ep_2016_1.csv'
-title="Watch the Gulf stream spawn a 'cold core ring'"#the name you want show on the .gif
-sttime=datetime(2016,3,1)
-end_time=datetime(2016,7,18)
+filename = 'drift_vims_2016_3.dat'#'drift_ep_2016_1.csv'
+title="GLERL drifters"#the name you want show on the .gif
+sttime=datetime(2016,7,10)
+end_time=datetime(2016,8,8)
 save_dir = './Results/'
 result ='animation'#plot  animation
-linetime=48#hour
-showtime_period=12
+linetime=24#hour
+showtime_period=4
 add_points=1#how many points want to add between two drifter points
 colors = ['cyan','olive','orange','magenta','red','purple','black','blue']#,yellow'green'
-mapmethod='etopo'#'etopo''usgs''bluemarble'#bluemarble and etopo both belong to basemap 
+mapmethod='usgs'#'etopo''usgs''bluemarble'#bluemarble and etopo both belong to basemap 
 track='line'#'point''line'
-zoom='on'#'on'
-data_type='hourly'#'raw''hourly'
-zoom_area=[-60,-73,41,35]#[lon[max],lon[min],lat[max],lat[min]]
-bathymetric=[-250,-200,-150,-100,-50]
-interval_lon=2
-interval_lat=1
-#####select drifter data 
+zoom='off'#'on'
+data_type='raw'#'raw''hourly'
+zoom_area=[-81.5,-84,43,41]#[lon[max],lon[min],lat[max],lat[min]]
+bathymetric=[-50,-7,-5,-2,-1]
+interval_lon=1
+interval_lat=0.5
+#####drifter data 
 
 dtimes=[]
 points = {'lats':[],'lons':[],'ids':[],'times':[],'months':[],'days':[],'depths':[],'YEARDAY':[]} 
@@ -80,8 +79,8 @@ for n in idlist:
         if zoom=='on':
             if lon<=zoom_area[0] and lon>=zoom_area[1] and lat<zoom_area[2] and lat>zoom_area[3] and depth<=-0.2 :
                 if dtimes[-1]>sttime and dtimes[-1]<end_time:
-                    #print dtimes[-1]
                     points['times'].extend([dtimes[-1]])#.strftime('%Y-%m-%d %H:%M'))
+                    #print points['times']
                     points['depths'].extend([depth])
                     points['YEARDAY'].extend([YEARDAY])
                     points['lons'].extend([lon]); points['lats'].extend([lat]);
@@ -101,7 +100,8 @@ for n in idlist:
             if dtimes[-1]>sttime and dtimes[-1]<end_time:
                 points['times'].extend([dtimes[-1]])#.strftime('%Y-%m-%d %H:%M'))
                 points['lons'].extend([lon]); points['lats'].extend([lat]);points['depths'].extend([depth]);points['YEARDAY'].extend([YEARDAY])
-                points['ids'].extend([n]);points['months'].extend([month]);points['days'].extend([day])   
+                points['ids'].extend([n]);points['months'].extend([month]);points['days'].extend([day])
+#print points
 mintime=min(points['times'])     
 #print mintime   
 file_data.append(points['ids'])
@@ -126,6 +126,7 @@ df=pd.read_csv(newfilename,header=None,skiprows=1); #get the drifter data
 ids = df[0][:] 
 idlist = set(ids); #the # of drifters
 print idlist
+#######basemap and function
 
 #######basemap and function
 def haversine(lon1, lat1, lon2, lat2): 
@@ -248,7 +249,6 @@ def lon2str(deg):
     else:  
       return (u"%d\N{DEGREE SIGN} %g' %s") % (np.abs(deg),np.abs(min),dir)
 
-   
 def basemap_usgs(points,bathy,cont_range,ss):
     #plot the coastline and, if bathy is True, bathymetry is plotted
     # lat and lon can be any list of positions in decimal degrees
@@ -267,28 +267,28 @@ def basemap_usgs(points,bathy,cont_range,ss):
         map_lat = [min(lats)-size,max(lats)+size]
 
 
+
+    print map_lon,map_lat
+    #ax = fig.sca(ax)
     dmap = Basemap(projection='cyl',
                    llcrnrlat=map_lat[0], llcrnrlon=map_lon[0],
                    urcrnrlat=map_lat[1], urcrnrlon=map_lon[1],
                    resolution='h',ax=ax)# resolution: c,l,i,h,f.
-    dmap.drawparallels(np.arange(int(map_lat[0])-1,
+    '''dmap.drawparallels(np.arange(int(map_lat[0])-1,
                                  int(map_lat[1])+1,interval_lat),
                        labels=[1,0,0,0])
     dmap.drawmeridians(np.arange(int(map_lon[0])-1,
                                  int(map_lon[1])+1,interval_lon),
-                       labels=[0,0,0,1])
+                       labels=[0,0,0,1])'''
     #dmap.drawcoastlines()# draw the coast line
     dmap.fillcontinents(color='grey')
     #url='http://geoport.whoi.edu/thredds/dodsC/bathy/crm_vol1.nc'
-    minlat=zoom_area[3]#-0.01
-    maxlat=zoom_area[2]#+0.01
-    minlon=zoom_area[1]#-0.01
-    maxlon=zoom_area[0]#+0.01
+
 
     base_url='http://coastwatch.pfeg.noaa.gov/erddap/griddap/usgsCeSrtm30v6.nc?'
     isub=1  # make isub =1 in production mode
 
-    query='topo[(%f):%d:(%f)][(%f):%d:(%f)]' % (maxlat,isub,minlat,minlon,isub,maxlon)
+    query='topo[(%f):%d:(%f)][(%f):%d:(%f)]' % (map_lat[1],isub,map_lat[0],map_lon[0],isub,map_lon[1])
 
     url = base_url+query
     file='usgsCeSrtm30v6.nc'
@@ -299,12 +299,12 @@ def basemap_usgs(points,bathy,cont_range,ss):
     basemap_lat=ncv['latitude'][:]
     basemap_lon=ncv['longitude'][:]
     basemap_topo=ncv['topo'][:]
-    #print basemap_lat
+    print map_lat[0],basemap_lat,range(0,basemap_lat.shape[0]),map_lon[0],basemap_lon,range(0,basemap_lon.shape[0])
 
-    index_minlat=int(round(np.interp(zoom_area[3],basemap_lat,range(0,basemap_lat.shape[0]))))
-    index_maxlat=int(round(np.interp(zoom_area[2],basemap_lat,range(0,basemap_lat.shape[0]))))
-    index_minlon=int(round(np.interp(zoom_area[1],basemap_lon,range(0,basemap_lon.shape[0]))))
-    index_maxlon=int(round(np.interp(zoom_area[0],basemap_lon,range(0,basemap_lon.shape[0]))))
+    index_minlat=int(round(np.interp(map_lat[0],basemap_lat,range(0,basemap_lat.shape[0]))))
+    index_maxlat=int(round(np.interp(map_lat[1],basemap_lat,range(0,basemap_lat.shape[0]))))
+    index_minlon=int(round(np.interp(map_lon[0],basemap_lon,range(0,basemap_lon.shape[0]))))
+    index_maxlon=int(round(np.interp(map_lon[1],basemap_lon,range(0,basemap_lon.shape[0]))))
     
     min_index_lat=min(index_minlat,index_maxlat)
     max_index_lat=max(index_minlat,index_maxlat)
@@ -316,15 +316,16 @@ def basemap_usgs(points,bathy,cont_range,ss):
 
     # You can set negative contours to be solid instead of dashed:
     matplotlib.rcParams['contour.negative_linestyle'] = 'solid'
-    if bathy==True:
+    #if bathy==True:
         #CS=plt.contourf(X,Y,basemap_topo.topo[min_index_lat:max_index_lat:ss,index_minlon:index_maxlon:ss],cont_range)#,colors=['0.8'])#,linewith=0.05)#cont_range)#,colors=['0.75','0.80','0.85','0.90'],linewith=0.05)
-        CS=plt.contour(X,Y,basemap_topo[min_index_lat:max_index_lat:ss,index_minlon:index_maxlon:ss],cont_range,linewidths=0.5)#cont_range)#,colors=['0.75','0.80','0.85','0.90'],linewith=0.05)
-        plt.clabel(CS, fmt='%5.0f m', colors='b', fontsize=8)
+    CS=plt.contour(X,Y,basemap_topo[min_index_lat:max_index_lat:ss,index_minlon:index_maxlon:ss],cont_range,linewidths=0.5)#cont_range)#,colors=['0.75','0.80','0.85','0.90'],linewith=0.05)
+    plt.clabel(CS, fmt='%5.0f m', colors='b', fontsize=8)
 
     if min_index_lat==max_index_lat:
         print "No basemap_usgs data available for this area"
     #else: 
        #plt.contourf(X,Y,basemap_topo[min_index_lat:max_index_lat:ss,min_index_lon:max_index_lon:ss],[0,1000],colors='0.5')
+
 def sh_interp3(ti,t,f):
     """
     interpolates irragularly spaced 1D data to uniform grid
@@ -334,6 +335,7 @@ def sh_interp3(ti,t,f):
     interpolation formula is expressed in terms of 
     Bernstein polynomials of 3rd order: B_0,B_1,B_2,B_3.
     """
+    #print ti,t
     m=f*0. # derivative
     N=len(f)
     for i in range(1,N-1):
@@ -355,7 +357,9 @@ def sh_interp3(ti,t,f):
     fi=ti*0.
     NN=len(ti)
     for ii in range(NN):
+        #print i,ti[ii]
         i=max(np.argwhere(t<=ti[ii])) # left end of segment
+
         dt=t[i+1]-t[i]
         a=(ti[ii]-t[i])/dt  # 0<a<1 normalized coordinate within a segment 
         b=1.-a
@@ -363,17 +367,115 @@ def sh_interp3(ti,t,f):
         fi[ii]=(b*b*b+3.*a*b*b)*f[i]+(a*a*a+3.*b*a*a)*f[i+1]+(a*b*b*m[i]-b*a*a*m[i+1])*dt
 
     return fi
+    
+def distance(origin, destination):
+    """ 
+    Calculates both distance and bearing
+    """
+    lat1, lon1 = origin
+    lat2, lon2 = destination
+    if lat1>1000:
+        (lat1,lon1)=dm2dd(lat1,lon1)
+        (lat2,lon2)=dm2dd(lat2,lon2)
+        #print 'converted to from ddmm to dd.ddd'
+    radius = 6371 # km
+    
+
+    dlat = math.radians(lat2-lat1)
+    dlon = math.radians(lon2-lon1)
+    a = math.sin(dlat/2) * math.sin(dlat/2) + math.cos(math.radians(lat1)) \
+        * math.cos(math.radians(lat2)) * math.sin(dlon/2) * math.sin(dlon/2)
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+    d = radius * c
+    
+    def calcBearing(lat1, lon1, lat2, lon2):
+       dLon = lon2 - lon1
+       y = math.sin(dLon) * math.cos(lat2)
+       x = math.cos(lat1) * math.sin(lat2) \
+           - math.sin(lat1) * math.cos(lat2) * math.cos(dLon)
+       return math.atan2(y, x)
+       
+    bear= math.degrees(calcBearing(lat1, lon1, lat2, lon2))  
+    return d,bear
+    
+def sd2uv(s,d):
+    r = d2r(d)
+    u = s * math.sin(r)
+    v = s * math.cos(r)
+    return (u,v)  
+def d2r(d):
+    r = d * math.pi / 180.0
+    return (r)
+    
+def ll2uv_datetime(dt,lat,lon):#dt is datetime
+    "based on yearday,lat,lon.  you can get latitude speed and longitude speed "
+    diff_time = []
+    ddt=[] # velocity time
+    for i in range(len(dt)-1):
+        diff_time.append((dt[i+1]-dt[i])*86400)
+        #print dt[i+1],dt[i],diff_time
+        ddt.append(dt[i]+(diff_time[i]/2.0))
+   
+    u,v,spd=[],[],[]
+    #print len(dt),len(lat),
+    for i in range(len(dt)-1):
+        #print lat[i],lon[i],lat[i+1],lon[i+1]
+        (dkm,bear)=distance([lat[i],lon[i]],[lat[i+1],lon[i+1]])
+        u.append(sd2uv(float(dkm*100000)/diff_time[i],bear)[0])
+        v.append(sd2uv(float(dkm*100000)/diff_time[i],bear)[1])
+        spd.append(np.sqrt(u[i]**2+v[i]**2))
+    return u,v,spd
+    
+def sh_rmtide(f,dt=1.,ends=0.):
+    """
+    removes solar and lunar tidal signal by sequentially averaging 
+    over their periods: of 24h and 24h50.47m. This is equivalent to
+    applying convolution with a trapezoidal shaped window (almost triagular).
+    
+    f - input tidal sequence
+    dt - uniform time step of input series, in hours, dt=1. hr default
+    ends - fill value for the ends: 0. or nan
+    
+    fm = sh_rmtide(f,dt=1.,ends=np.nan)
+    """
+    TS=24. # Solar hour angle period 24h
+    TL=24.+50.47/60. # Lunar hour angle period
+    N=len(f)
+    fm=np.zeros(N)*ends
+
+# remove solar period    
+    T=TS/dt
+    m=int(np.floor((T-1.)/2.))
+    w=(T-(2*m+1))*0.5
+# all weights =1 except at ends      
+#    print w
+    for i in range(m+1,N-m-1-1):
+        #print len(f[i-m:i+m+1])
+        fm[i]=(np.sum(f[i-m:i+m+1])+w*f[i-m-1]+w*f[i+m+1])/T
+        
+# remove lunar period
+    f=fm*1.0  # deep copy!  
+    T=TL/dt
+    m=int(np.floor((T-1.)/2.))
+    w=(T-(2*m+1))*0.5
+# all weights =1 except at ends      
+#    print w
+    for i in range(m+1,N-m-1-1):
+        #print len(f[i-m:i+m+1])
+        fm[i]=(np.sum(f[i-m:i+m+1])+w*f[i-m-1]+w*f[i+m+1])/T
+    
+    return fm
 ########animation    
 if sttime<mintime   :
     start_time=mintime
 else:
     start_time=sttime
 points_all= {'lats':[],'lons':[]} 
-points= {'lats':[],'lons':[],'times':[]}  
+
 yearday=[];lons = []; lats = []; loop_num = []; times =[]; ctime = []; toltime = [] #mint = []; maxt = []
 
 for i in idlist:
-
+    points= {'lats':[],'lons':[],'times':[]}  
     index = np.where(df[0]==i)[0]
     ddata = df.ix[index]; 
     if data_type=='raw':
@@ -392,7 +494,52 @@ for i in idlist:
         #mint.append(min(ds)); maxt.append(max(ds))
         times.append(np.array(ts)); ctime.append(np.array(ds)); toltime.extend(ds)
         lons.append(np.array(ddata[4])); lats.append(np.array(ddata[5]))
+        
+    
 
+    elif data_type=='rmtide':
+        points['lons'].extend(ddata[4]); points['lats'].extend(ddata[5]); points['times'].extend(ddata[3])
+        points_all['lons'].extend(ddata[4]); points_all['lats'].extend(ddata[5]);yearday.extend(ddata[6])
+        ts = []; ds = [];rawtime=[]
+        if len(points['times'])>2:
+            for t in range(len(points['times'])):
+                
+                rawtime.append(date2num(datetime.strptime(points['times'][t],'%Y-%m-%d'+' '+'%H:%M:%S')))
+    
+            t1=np.ceil(np.min(rawtime)*24.)/24.
+            t2=np.floor(np.max(rawtime)*24.)/24.
+            tdh=np.arange(t1,t2,1./24.)
+            #print t1,t2,tdh,rawtime
+            latdh=sh_interp3(np.array(tdh),np.array(rawtime),np.array(points['lats']))
+            londh=sh_interp3(np.array(tdh),np.array(rawtime),np.array(points['lons']))
+            for j in range(len(tdh)):
+                #print 1,start_time.month,tdh[j]
+                temptime=num2date(tdh[j]).replace(tzinfo=None)
+                ts.append(temptime)
+                ths = (datetime(2016,1,1)+timedelta(tdh[j]) - start_time).total_seconds()/3600
+                ds.append(int(round(ths)))
+            #print points['times'],latdh,londh
+        
+
+            latrh=sh_rmtide(latdh,ends=np.NaN)
+            lonrh=sh_rmtide(londh,ends=np.NaN)
+            #print vrt
+            #for i in range(len(vrt)):'''
+                
+        else:
+            for j in range(len(ddata)):
+    
+                strt=ddata[3][index[j]]
+                temptime = datetime.strptime(strt,'%Y-%m-%d'+' '+'%H:%M:%S')
+                ts.append(temptime) #'''
+                ths = (temptime - start_time).total_seconds()/3600
+                ds.append(int(round(ths)))
+            londh=ddata[4];latdh=ddata[5]
+            lonrh=londh;latrh=latdh
+        #mint.append(min(ds)); maxt.append(max(ds))
+        times.append(np.array(ts)); ctime.append(np.array(ds)); toltime.extend(ds)
+        lons.append(londh); lats.append(latdh)
+        
     elif data_type=='hourly':
         points['lons'].extend(ddata[4]); points['lats'].extend(ddata[5]); points['times'].extend(ddata[3])
         points_all['lons'].extend(ddata[4]); points_all['lats'].extend(ddata[5]);yearday.extend(ddata[6])
@@ -402,12 +549,10 @@ for i in idlist:
                 
                 rawtime.append(date2num(datetime.strptime(points['times'][t],'%Y-%m-%d'+' '+'%H:%M:%S')))
     
-            st=date2num(datetime.strptime(points['times'][0],'%Y-%m-%d'+' '+'%H:%M:%S'))
-            et=date2num(datetime.strptime(points['times'][-1],'%Y-%m-%d'+' '+'%H:%M:%S'))
-            t1=np.ceil(st*24.)/24.
-            t2=np.floor(et*24.)/24.
+            t1=np.ceil(np.min(rawtime)*24.)/24.
+            t2=np.floor(np.max(rawtime)*24.)/24.
             tdh=np.arange(t1,t2,1./24.)
-            #print np.array(tdh),np.array(points['times'])
+            #print t1,t2,tdh,rawtime
             latdh=sh_interp3(np.array(tdh),np.array(rawtime),np.array(points['lats']))
             londh=sh_interp3(np.array(tdh),np.array(rawtime),np.array(points['lons']))
             for j in range(len(tdh)):
@@ -416,6 +561,7 @@ for i in idlist:
                 ts.append(temptime)
                 ths = (datetime(2016,1,1)+timedelta(tdh[j]) - start_time).total_seconds()/3600
                 ds.append(int(round(ths)))
+
         else:
             for j in range(len(ddata)):
     
@@ -424,12 +570,13 @@ for i in idlist:
                 ts.append(temptime) #'''
                 ths = (temptime - start_time).total_seconds()/3600
                 ds.append(int(round(ths)))
-            
+            londh=ddata[4];latdh=ddata[5]
+            lonrh=londh;latrh=latdh
         #mint.append(min(ds)); maxt.append(max(ds))
         times.append(np.array(ts)); ctime.append(np.array(ds)); toltime.extend(ds)
         lons.append(londh); lats.append(latdh)
-        points= {'lats':[],'lons':[],'times':[]} 
-    #print times
+ 
+ 
 #mintime = min(mint); maxtime = max(maxt)
 #mtime = range(mintime,maxtime+1)
 toltime = set(toltime); 
@@ -493,11 +640,12 @@ if result == 'animation':
                 ni = np.argmin(abs(abct)); 
 
                 marksize=6
+                ax.plot(lons[i][ni],lats[i][ni],'o',color=c,markersize=marksize+2,markeredgecolor = 'none')
                 for k in range(min(seglength,ni)):
                     marksize=6-float((6*k)/seglength)
 
                     #linew=marksize-1.5      
-                    ax.plot(lons[i][ni],lats[i][ni],'o',color=c,markersize=marksize+2,markeredgecolor = 'none')
+                    
                     ax.plot([lons[i][ni-k-1],lons[i][ni-k]],[lats[i][ni-k-1],lats[i][ni-k]],'-', color=c,linewidth=marksize)                           
         
                     '''elif track=='spline':
