@@ -21,24 +21,25 @@ from matplotlib import animation
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 ##########hard code
-filename = 'drift_vims_2016_3.dat'#'drift_ep_2016_1.csv'
-title="GLERL drifters"#the name you want show on the .gif
-sttime=datetime(2016,7,10)
-end_time=datetime(2016,8,8)
+filename = 'drift_X.dat'#'drift_ep_2016_1.csv'
+title='Warm Core Ring Entrainment 2016 w/surface(blue) and deep(red)'#"Warm Core Ring Entrainment 2016"#the name you want show on the .gif
+zoom='on'#'on'
+sttime=datetime(2016,8,13)
+end_time=datetime(2016,9,19)
 save_dir = './Results/'
 result ='animation'#plot  animation
 linetime=24#hour
-showtime_period=4
+showtime_period=2
 add_points=1#how many points want to add between two drifter points
-colors = ['cyan','olive','orange','magenta','red','purple','black','blue']#,yellow'green'
+colors =['cyan','olive','orange','magenta','red','purple','black','blue']#['cyan','olive','orange','magenta','red','purple','black','blue']#['red','blue','red','blue','red','blue','red','blue'] #['cyan','olive','orange','magenta','red','purple','black','blue']#,yellow'green'
 mapmethod='usgs'#'etopo''usgs''bluemarble'#bluemarble and etopo both belong to basemap 
 track='line'#'point''line'
-zoom='off'#'on'
-data_type='raw'#'raw''hourly'
-zoom_area=[-81.5,-84,43,41]#[lon[max],lon[min],lat[max],lat[min]]
-bathymetric=[-50,-7,-5,-2,-1]
+data_type='raw'#'raw''hourly''rmtide'
+automap='off'#off
+zoom_area=[-62.6,-71.2,43.4,38.5]#[lon[max],lon[min],lat[max],lat[min]]
+bathymetric=[-400,-100,-60]
 interval_lon=1
-interval_lat=0.5
+interval_lat=1
 #####drifter data 
 
 dtimes=[]
@@ -76,32 +77,35 @@ for n in idlist:
             syear=int(syear)+1
             
             
-        if zoom=='on':
+        if zoom=='on' :
             if lon<=zoom_area[0] and lon>=zoom_area[1] and lat<zoom_area[2] and lat>zoom_area[3] and depth<=-0.2 :
                 if dtimes[-1]>sttime and dtimes[-1]<end_time:
                     points['times'].extend([dtimes[-1]])#.strftime('%Y-%m-%d %H:%M'))
-                    #print points['times']
+                    #print dtimes[-1]
                     points['depths'].extend([depth])
                     points['YEARDAY'].extend([YEARDAY])
                     points['lons'].extend([lon]); points['lats'].extend([lat]);
                     points['ids'].extend([n]);points['months'].extend([month]);points['days'].extend([day])   
         if zoom=='off':
+
             time='20'+str(syear)+'-'+str(month)+'-'+str(day)+' '+str(hour)+':'+str(minute)   
             dtimes.append(datetime.strptime(time, '%Y-%m-%d'+' '+'%H:%M' ))
             #print time
 
-            if len(dtimes)==1:
+            '''if len(dtimes)==1:
                 pass
             elif dtimes[-1]<dtimes[-2]:
                 dtimes[-1]=dtimes[-1] + relativedelta(years=1)
-                syear=int(syear)+1
+                syear=int(syear)+1'''
 
 
-            if dtimes[-1]>sttime and dtimes[-1]<end_time:
-                points['times'].extend([dtimes[-1]])#.strftime('%Y-%m-%d %H:%M'))
-                points['lons'].extend([lon]); points['lats'].extend([lat]);points['depths'].extend([depth]);points['YEARDAY'].extend([YEARDAY])
-                points['ids'].extend([n]);points['months'].extend([month]);points['days'].extend([day])
-#print points
+            #if dtimes[-1]>sttime and dtimes[-1]<end_time:
+            points['times'].extend([dtimes[-1]])#.strftime('%Y-%m-%d %H:%M'))
+            points['lons'].extend([lon]); points['lats'].extend([lat]);points['depths'].extend([depth]);points['YEARDAY'].extend([YEARDAY])
+            points['ids'].extend([n]);points['months'].extend([month]);points['days'].extend([day])
+            sttime=min(points['times'])
+            end_time=max(points['times']) 
+                
 mintime=min(points['times'])     
 #print mintime   
 file_data.append(points['ids'])
@@ -262,24 +266,20 @@ def basemap_usgs(points,bathy,cont_range,ss):
     else:
         lons = points['lons']
         lats = points['lats']
-        size = max((max(lons)-min(lons)),(max(lats)-min(lats)))/10
+        size = 0.2
         map_lon = [min(lons)-size,max(lons)+size]
         map_lat = [min(lats)-size,max(lats)+size]
 
 
 
-    print map_lon,map_lat
+    #print map_lon,map_lat
     #ax = fig.sca(ax)
     dmap = Basemap(projection='cyl',
                    llcrnrlat=map_lat[0], llcrnrlon=map_lon[0],
                    urcrnrlat=map_lat[1], urcrnrlon=map_lon[1],
                    resolution='h',ax=ax)# resolution: c,l,i,h,f.
-    '''dmap.drawparallels(np.arange(int(map_lat[0])-1,
-                                 int(map_lat[1])+1,interval_lat),
-                       labels=[1,0,0,0])
-    dmap.drawmeridians(np.arange(int(map_lon[0])-1,
-                                 int(map_lon[1])+1,interval_lon),
-                       labels=[0,0,0,1])'''
+    dmap.drawparallels(np.arange(int(map_lat[0])-1,int(map_lat[1])+1,interval_lat),labels=[1,0,0,0])
+    dmap.drawmeridians(np.arange(int(map_lon[0])-1,int(map_lon[1])+1,interval_lon),labels=[0,0,0,1])
     #dmap.drawcoastlines()# draw the coast line
     dmap.fillcontinents(color='grey')
     #url='http://geoport.whoi.edu/thredds/dodsC/bathy/crm_vol1.nc'
@@ -299,8 +299,7 @@ def basemap_usgs(points,bathy,cont_range,ss):
     basemap_lat=ncv['latitude'][:]
     basemap_lon=ncv['longitude'][:]
     basemap_topo=ncv['topo'][:]
-    print map_lat[0],basemap_lat,range(0,basemap_lat.shape[0]),map_lon[0],basemap_lon,range(0,basemap_lon.shape[0])
-
+    
     index_minlat=int(round(np.interp(map_lat[0],basemap_lat,range(0,basemap_lat.shape[0]))))
     index_maxlat=int(round(np.interp(map_lat[1],basemap_lat,range(0,basemap_lat.shape[0]))))
     index_minlon=int(round(np.interp(map_lon[0],basemap_lon,range(0,basemap_lon.shape[0]))))
@@ -317,10 +316,10 @@ def basemap_usgs(points,bathy,cont_range,ss):
     # You can set negative contours to be solid instead of dashed:
     matplotlib.rcParams['contour.negative_linestyle'] = 'solid'
     #if bathy==True:
-        #CS=plt.contourf(X,Y,basemap_topo.topo[min_index_lat:max_index_lat:ss,index_minlon:index_maxlon:ss],cont_range)#,colors=['0.8'])#,linewith=0.05)#cont_range)#,colors=['0.75','0.80','0.85','0.90'],linewith=0.05)
-    CS=plt.contour(X,Y,basemap_topo[min_index_lat:max_index_lat:ss,index_minlon:index_maxlon:ss],cont_range,linewidths=0.5)#cont_range)#,colors=['0.75','0.80','0.85','0.90'],linewith=0.05)
+    #CS=plt.contourf(X,Y,basemap_topo.topo[min_index_lat:max_index_lat:ss,index_minlon:index_maxlon:ss],cont_range)#,colors=['0.8'])#,linewith=0.05)#cont_range)#,colors=['0.75','0.80','0.85','0.90'],linewith=0.05)
+    CS=plt.contour(X,Y,basemap_topo[min_index_lat:max_index_lat:ss,index_minlon:index_maxlon:ss],cont_range,linewidths=0.5,colors='grey')#cont_range)#,colors=['0.75','0.80','0.85','0.90'],linewith=0.05)
     plt.clabel(CS, fmt='%5.0f m', colors='b', fontsize=8)
-
+    #plt.
     if min_index_lat==max_index_lat:
         print "No basemap_usgs data available for this area"
     #else: 
@@ -588,9 +587,7 @@ if result == 'plot':
     for i in range(len(lons)):
         plt.plot(lons[i],lats[i],'-',color = colors[i%10],markersize=20)
 
-#ax.plot(drifter_points['lon'],drifter_points['lat'],'bo-',markersize=6,label='Drifter')
-'''ax.annotate(an2,xy=(dr_points['lon'][-1],dr_points['lat'][-1]),xytext=(dr_points['lon'][-1]+0.01*track_days,
-            dr_points['lat'][-1]+0.01*track_days),fontsize=6,arrowprops=dict(arrowstyle="fancy"))#'''
+
 
 
     
@@ -598,18 +595,22 @@ if result == 'plot':
 if result == 'animation':
     ailoops = int((toltime[-1]-toltime[0])/showtime_period)
     print 'frame:',ailoops
+    #print lons
     def animate(n):
-        #print n
+        
         del ax.lines[:]#del ax.collections[:]ax.cla()
 
+        changepoint={'lats':[],'lons':[]}  
+        
+        #thismanager3 = pylab.get_current_fig_manager()
         supt = (start_time + n*timedelta(hours=showtime_period)).strftime('%Y-%m-%d')  
        
         drawst=start_time + n*timedelta(hours=showtime_period)
         drawend=drawst+timedelta(hours=linetime)
         #print supt        
         plt.suptitle('%s  \n date: %s'%(title,supt),fontsize=12)   
-
-
+        
+        #add wind
         '''index=nearpoint_index(0.5*(zoom_area[2]+zoom_area[3]),0.5*(zoom_area[0]+zoom_area[1]))
         
         cptime="2016,06,29,00,00" 
@@ -626,13 +627,16 @@ if result == 'animation':
         v_wind=data['V10'][:];u_wind=data['U10'][:]
         print v_wind[0][0][0]'''
         for i in range(len(lons)): #loop drifters
+            #print lons
             std=times[i]-drawst
             sindex = np.argmin(abs(std))
             etd=times[i]-drawend
             eindex = np.argmin(abs(etd))
-
+            #print sindex,eindex
             seglength=eindex-sindex
-
+             
+            changepoint['lats'].extend(lats[i][0:eindex]);changepoint['lons'].extend(lons[i][0:eindex])
+            
             c = colors[i%len(colors)]
             if track=='line':
                 abct = ctime[i] - (toltime[0]+n*showtime_period)
@@ -640,7 +644,11 @@ if result == 'animation':
                 ni = np.argmin(abs(abct)); 
 
                 marksize=6
-                ax.plot(lons[i][ni],lats[i][ni],'o',color=c,markersize=marksize+2,markeredgecolor = 'none')
+                
+                    
+                if ni!=0 and ni!=len(lons[i])-1:
+                   
+                    ax.plot(lons[i][ni],lats[i][ni],'o',color=c,markersize=marksize+1,markeredgecolor = 'none')
                 for k in range(min(seglength,ni)):
                     marksize=6-float((6*k)/seglength)
 
@@ -648,38 +656,7 @@ if result == 'animation':
                     
                     ax.plot([lons[i][ni-k-1],lons[i][ni-k]],[lats[i][ni-k-1],lats[i][ni-k]],'-', color=c,linewidth=marksize)                           
         
-                    '''elif track=='spline':
-                        abct = ctime[i] - (toltime[0]+n*showtime_period)
-                        #print abct
-                        ni = np.argmin(abs(abct)); 
-                        #print ni
-                        marksize=6
-                        for k in range(min(seglength,ni)):
-                            if k<4:
-                                marksize=6-float((6*k)/seglength)
-            
-                                #linew=marksize-1.5      
-                                ax.plot(lons[i][ni],lats[i][ni],'o',color=c,markersize=marksize+2,markeredgecolor = 'none')
-                                ax.plot([lons[i][ni-k-1],lons[i][ni-k]],[lats[i][ni-k-1],lats[i][ni-k]],'-', color=c,linewidth=marksize)                           
-                            else:
-                                a=[]
-                                b=[]
-                                for k in range(4,seglength):
-                                    #print k
-                                    marksize=6-float((6*k)/seglength)
-                                    
-                                    lon=lons[i][ni-4:ni+1]
-                                    lat=lats[i][ni-4:ni+1]
-                                    
-                                    tck,u= interpolate.splprep([lon,lat], s=0)
-                                    print tck,u
-                                    unew = np.arange(0, 1.01, 0.05)
-                                    out = interpolate.splev(unew, tck)
-                                    #print out
-                                    a.extend(out[0])
-                                    b.extend(out[1])
-                                    ax.plot( a, b, 'bo-',color=c,markersize=marksize,markeredgecolor = 'none')
-                                    plt.show'''
+                    
             
             elif track=='point':
                 if toltime[n] > ctime[i][-1]:
@@ -708,25 +685,27 @@ if result == 'animation':
 
                         for k in range(seglength):
                             ax.plot(lons[i][ni-k],lats[i][ni-k],'o-',color=c,markersize=seglength-k,markeredgecolor = 'none')
+            if automap=='on':
 
-            
-                    
-        
-    if mapmethod=='etopo' or mapmethod=='bluemarble':
+                if mapmethod=='etopo' or mapmethod=='bluemarble':
+                    draw_basemap(ax,changepoint, interval_lon,interval_lat)  
+                    plt.close()
+                elif mapmethod=='usgs':
+                    basemap_usgs(changepoint,True,bathymetric,1)
+                    ax.set_visible(False)
+    if automap=='off':
         fig = plt.figure() #figsize=(10,9)
         #can use this to control where the picture is 
-        ax = fig.add_subplot(111)
-        draw_basemap(ax,points_all, interval_lon,interval_lat)  # points is using here
-
-        anim = animation.FuncAnimation(fig, animate, frames=ailoops, interval=100) 
-    elif mapmethod=='usgs':
-        fig = plt.figure() #figsize=(16,12)
-        #can use this to control where the picture is 
-        ax = fig.add_subplot(111)
-        basemap_usgs(points_all,True,bathymetric,1)
-        thismanager3 = pylab.get_current_fig_manager()
-
-        anim = animation.FuncAnimation(fig, animate, frames=ailoops, interval=100) 
+        ax = fig.add_subplot(111) 
+        if mapmethod=='etopo' or mapmethod=='bluemarble':
+            draw_basemap(ax,points_all, interval_lon,interval_lat)  # points is using here
+        elif mapmethod=='usgs':
+            basemap_usgs(points_all,True,bathymetric,1)
+            thismanager3 = pylab.get_current_fig_manager()
+    
+    #can use this to control where the picture is 
+    ax = fig.add_subplot(111) 
+    anim = animation.FuncAnimation(fig, animate, frames=ailoops, interval=100) 
 
     en_run_time = datetime.now()
     # mencoder,imagemagick,ffmpeg
