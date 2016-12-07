@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Tue Dec  6 15:38:12 2016
-
+compare the telemetered data with raw data for each profile
 @author: yifan
 """
 import pandas as pd
