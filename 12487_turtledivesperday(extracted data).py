@@ -68,8 +68,8 @@ for i in range(len(dive_dates)):
         if dive_date[j]==dive_dates[i]:
             day_dives[i]+=1
 
-ave_dive=round(np.mean(np.array(day_dives)),2)
-std_dive=round(np.std(np.array(day_dives)),2)    
+ave_dive=int(round(np.mean(np.array(day_dives))))
+std_dive=int(round(np.std(np.array(day_dives))))    
 day_dives.sort()
 day_dives=pd.Series(day_dives)
 y=day_dives.value_counts()
