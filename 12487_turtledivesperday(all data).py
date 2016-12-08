@@ -66,24 +66,33 @@ for i in range(len(dive_dates)):
         if dive_date[j]==dive_dates[i]:
             day_dives[i]+=1
 
-ave_dive=round(np.mean(np.array(day_dives)),2)
-std_dive=round(np.std(np.array(day_dives)),2)    
+ave_dive=int(round(np.mean(np.array(day_dives))))
+std_dive=int(round(np.std(np.array(day_dives))))    
 day_dives.sort()
 day_dives=pd.Series(day_dives)
 y=day_dives.value_counts()
 y=y.sort_index()
 x=day_dives.unique()
 fig=plt.figure()
-width=0.4
-plt.bar(x,y,align="center",width=width,color='green' ,label='turtle 12478 ')
+width=0.8
+ynew,xnew=[],[]
+for a in range(25): # make the x axis 25 equal parts
+    sum0=0
+    for i in range(len(x)):
+        if x[i]>=a*2 and x[i]<a*2+2:
+            sum0=sum0+y[x[i]]
+    ynew.append(sum0)
+    xnew.append(a*2)
+    
+plt.bar(xnew,ynew,align="center",width=width,color='green' ,label='turtle 12478 ')
 plt.legend(loc='best')
 plt.xlim([0,50])
 plt.ylim([0,12]) 
 plt.xticks(fontsize=8)
 plt.yticks(fontsize=8)
-plt.xlabel('dives one day',fontsize=10)
+plt.xlabel('dives per day',fontsize=10)
 plt.ylabel('amount of days',fontsize=10)
 plt.title(str(ave_dive)+' average dives/day with standard deviation of '+str(std_dive),fontsize=12)
-plt.savefig('12487_turtledives(all data).png')  # ,' average dives:'+str(ave_dive)
+plt.savefig('12487_turtledivesperday(all data).png')  # ,' average dives:'+str(ave_dive)
 plt.show()
 
