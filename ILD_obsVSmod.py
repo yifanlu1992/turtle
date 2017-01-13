@@ -11,7 +11,7 @@ import matplotlib as mpl
 from datetime import  timedelta
 from turtleModule import  str2ndlist, np_datetime
 
-example=[117170,118905,129775,129779] # those turtle's id is random  
+example=[117170,129775,118905,129779] # those turtle's id is random  
 T=[]  # get all information of six example turtle
 for e in range(len(example)):
     obsData = pd.read_csv('ctdWithModTempByDepth.csv')
@@ -89,14 +89,21 @@ for i in range(4):
     ax.plot(T[i][1], T[i][0]['obsILD'], color='b', linewidth=1)
     ax.plot(T[i][1], T[i][0]['modILD'], color='r', linewidth=1)
     ax.set_title('%s'%(example[i]), fontsize=8)
-    dates = mpl.dates.drange(np.amin(T[i][0]['obsTime']), np.max(T[i][0]['obsTime']), timedelta(days=30))
+    if i==2:
+       dates = mpl.dates.drange(np.amin(T[i][0]['obsTime']), np.max(T[i][0]['obsTime']+timedelta(days=30)), timedelta(days=30))
+    else:
+       dates = mpl.dates.drange(np.amin(T[i][0]['obsTime']), np.max(T[i][0]['obsTime']), timedelta(days=30))
     dateFmt = mpl.dates.DateFormatter('%b')
     ax.set_xticks(dates)
     ax.xaxis.set_major_formatter(dateFmt)
     ax.set_ylim([35,2]) 
     plt.text(T[i][0]['obsTime'][1],31,'obsmean'+str(T[i][2]))
     plt.text(T[i][0]['obsTime'][1],34,'modmean'+str(T[i][3]))
-#plt.xlabel('2013', fontsize=14)
-#plt.ylabel('isothermal layer depth', fontsize=14)
+    if i==1 or i==3: 
+        plt.setp(ax.get_yticklabels() ,visible=False)
+    if i==0 or i==1:
+        plt.setp(ax.get_xticklabels() ,visible=False)
+fig.text(0.5, 0.04, '2013', ha='center', va='center', fontsize=14)#  0.5 ,0.04 represent the  plotting scale of x_axis and y_axis
+fig.text(0.06, 0.5, 'isothermal layer depth', ha='center', va='center', rotation='vertical',fontsize=14)
 plt.savefig('ILD_obsVSmod.png',dpi=200)
 plt.show()
