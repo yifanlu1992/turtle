@@ -26,46 +26,41 @@ obsTime.index=Index
 obsTemp.index=Index
 obsDepth.index=Index
 
-for m in Index:
-    if m%10==0: # every 10 profiles plotted in one picture
-        plt.figure() 
-        for i in range(m,m+10):
-            if i==79: # total profile is 79
+ILD=[]#get the "isothermal layer depth" of all profile
+for i in range(60):# just want plot six picture
+    try:   
+        if obsTemp[i][0]==obsTemp[i][1]:
+            min_slope=1000  # 1000 is a large of random that represents infinity
+        else:
+            min_slope=(obsDepth[i][1]-obsDepth[i][0])/(obsTemp[i][0]-obsTemp[i][1])
+        for k in range(1,9):   # each profile have the 10 points record
+            if obsTemp[i][k]==obsTemp[i][k+1] or obsDepth[i][k+1]==obsDepth[i][k]:
                 break
-            #if i!= 3 and i!= 44 and i!=50: # these profile have something wrong 
-            try:   
-                if obsTemp[i][0]==obsTemp[i][1]:
-                    min_slope=1000  # 1000 is a large of random that represents infinity
-                else:
-                    min_slope=(obsDepth[i][1]-obsDepth[i][0])/(obsTemp[i][0]-obsTemp[i][1])
-                for k in range(1,9):   # each profile have the 10 points record
-                    if obsTemp[i][k]==obsTemp[i][k+1] or obsDepth[i][k+1]==obsDepth[i][k]:
-                        break
-                    sl=(obsDepth[i][k+1]-obsDepth[i][k])/(obsTemp[i][k]-obsTemp[i][k+1])
-                    #print sl
-                    if sl<=min_slope:
-                        min_slope=sl
-                    else:
-                        break
-                ILD=[(obsTemp[i][k]+obsTemp[i][k-1])/2,(obsDepth[i][k-1]+obsDepth[i][k])/2] # ILD means isothermal layer depth
-                X=[]
-                for j in range(10):  # seperated the profile by 2 degree difference
-                    x=obsTemp[i][j]+5*i
-                    X.append(x)
-                plt.plot(X,obsDepth[i],'b',linewidth=2)
-                plt.plot((ILD[0]-1.5+5*i,ILD[0]+1.5+5*i),(ILD[1],ILD[1]),linewidth=2,color='red')# remark the ILD by a short transverse line
-                #plt.xlim([15+n*55, 70+n*55])
-                plt.ylim([40, -1])
-                plt.xlabel('profile', fontsize=10)
-                plt.ylabel('Depth', fontsize=10)
-                #plt.xticks(fontsize=10)
-                plt.yticks(fontsize=10)
-                #plt.legend(loc='lower right')
-                plt.title('isothermal layer depth',fontsize=14)
-                #plt.text(1,0,'time:'+str(obsTime[i])+'')
-                #plt.text(1,1,'location:'+str(round(obsLon[i],2))+', '+str(round(obsLat[i],2))+'')
-                plt.savefig('ILD_%s.png'%(m))
-            except IndexError :
-                continue
-        plt.show()
-        
+            sl=(obsDepth[i][k+1]-obsDepth[i][k])/(obsTemp[i][k]-obsTemp[i][k+1])
+            #print sl
+            if sl<=min_slope:
+                min_slope=sl
+            else:
+                break
+        ild=[(obsTemp[i][k]+obsTemp[i][k-1])/2,(obsDepth[i][k-1]+obsDepth[i][k])/2] # ILD means isothermal layer depth
+    except IndexError :
+        continue   
+    ILD.append(ild)
+
+fig=plt.figure()
+for i in range(60):
+    if i%10==0:
+        ax=fig.add_subplot(2,3,i/10+1)
+        for j in range(i,i+10):
+            ax.plot(np.array(obsTemp[j])+5*j,obsDepth[j],'b',linewidth=1)
+            ax.plot((ILD[j][0]-1.5+5*j,ILD[j][0]+1.5+5*j),(ILD[j][1],ILD[j][1]),linewidth=2,color='red')# remark the ILD by a short transverse line
+            ax.set_ylim([40,-1]) 
+        if i==10 or i==20 or i==40 or i==50: 
+            plt.setp(ax.get_yticklabels() ,visible=False)
+        #if i==0 or i==10 or i==20:
+        plt.setp(ax.get_xticklabels() ,visible=False)
+#fig.title('turtle_id=118905',fontsize=18)
+fig.text(0.5, 0.04, 'profile (id=118905)', ha='center', va='center', fontsize=14)#  0.5 ,0.04 represent the  plotting scale of x_axis and y_axis
+fig.text(0.06, 0.5, 'Depth', ha='center', va='center', rotation='vertical',fontsize=14)
+plt.savefig('obs_ILD.png',dpi=200)
+plt.show()
