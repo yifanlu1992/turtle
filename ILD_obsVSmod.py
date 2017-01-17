@@ -2,6 +2,7 @@
 """
 Created on Wed Jan  4 15:35:00 2017
 compare  isothermal layer depth(ILD) of 4 turtle data and model data.(turtles are random 4 turtle)
+choose to plot raw ILD or smoothed one
 @author: yifan
 """
 import numpy as np
@@ -10,6 +11,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from datetime import  timedelta
 from turtleModule import  str2ndlist, np_datetime
+import utilities
 
 example=[117170,129775,118905,129779] # those turtle's id is random  
 T=[]  # get all information of six example turtle
@@ -82,12 +84,24 @@ for e in range(len(example)):
     t=[data,Date,ave_obs,ave_mod]
     T.append(t)
     print e
-    
+'''
+M,O=[],[]# smooth the model and observation ILD 
+for i in range(4):
+    num=6 # smooth by 6 is the best 
+    ild1_smooth=utilities.smooth(T[i][0]['modILD'],num,'hanning')
+    difflen1=len(ild1_smooth)-len(T[i][0]['modILD'])
+    ilds1=ild1_smooth[difflen1/2:-difflen1/2]
+    ild2_smooth=utilities.smooth(T[i][0]['obsILD'],num,'hanning')
+    difflen2=len(ild2_smooth)-len(T[i][0]['obsILD'])
+    ilds2=ild2_smooth[difflen2/2:-difflen2/2]
+    M.append(ilds1)
+    O.append(ilds2)
+'''    
 fig=plt.figure()
 for i in range(4):
     ax = fig.add_subplot(2,2,i+1,)
-    ax.plot(T[i][1], T[i][0]['obsILD'], color='b', linewidth=1)
-    ax.plot(T[i][1], T[i][0]['modILD'], color='r', linewidth=1)
+    ax.plot(T[i][1], T[i][0]['obsILD'], color='b', linewidth=1)#when we want to plot the smoothed 'obsILD' ,"T[i][0]['obsILD']" changed with "O[i]' 
+    ax.plot(T[i][1], T[i][0]['modILD'], color='r', linewidth=1)#when we want to plot the smoothed 'modILD' ,"T[i][0]['modILD']" changed with "M[i]' 
     ax.set_title('%s'%(example[i]), fontsize=8)
     if i==2:
        dates = mpl.dates.drange(np.amin(T[i][0]['obsTime']), np.max(T[i][0]['obsTime']+timedelta(days=30)), timedelta(days=30))
