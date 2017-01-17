@@ -49,18 +49,20 @@ for i in range(60):# just want plot six picture
 
 fig=plt.figure()
 for i in range(60):
-    if i%10==0:
-        ax=fig.add_subplot(2,3,i/10+1)
-        for j in range(i,i+10):
-            ax.plot(np.array(obsTemp[j])+5*j,obsDepth[j],'b',linewidth=1)
-            ax.plot((ILD[j][0]-1.5+5*j,ILD[j][0]+1.5+5*j),(ILD[j][1],ILD[j][1]),linewidth=2,color='red')# remark the ILD by a short transverse line
-            ax.set_ylim([40,-1]) 
-        if i==10 or i==20 or i==40 or i==50: 
-            plt.setp(ax.get_yticklabels() ,visible=False)
-        #if i==0 or i==10 or i==20:
-        plt.setp(ax.get_xticklabels() ,visible=False)
-#fig.title('turtle_id=118905',fontsize=18)
-fig.text(0.5, 0.04, 'profile (id=118905)', ha='center', va='center', fontsize=14)#  0.5 ,0.04 represent the  plotting scale of x_axis and y_axis
-fig.text(0.06, 0.5, 'Depth', ha='center', va='center', rotation='vertical',fontsize=14)
+    ax1=fig.add_subplot(2,1,1)
+    for j in range(0,30):
+        ax1.plot(np.array(obsTemp[j])+5*j,obsDepth[j],'b',linewidth=1)
+        ax1.plot((ILD[j][0]-1.5+5*j,ILD[j][0]+1.5+5*j),(ILD[j][1],ILD[j][1]),linewidth=2,color='red')# remark the ILD by a short transverse line
+        ax1.set_ylim([40,-1])
+        plt.setp(ax1.get_xticklabels() ,visible=False)
+    ax2=fig.add_subplot(2,1,2)
+    for j in range(30,60):
+        ax2.plot(np.array(obsTemp[j])+5*j,obsDepth[j],'b',linewidth=1)
+        ax2.plot((ILD[j][0]-1.5+5*j,ILD[j][0]+1.5+5*j),(ILD[j][1],ILD[j][1]),linewidth=2,color='red')# remark the ILD by a short transverse line
+        ax2.set_ylim([40,-1])
+        plt.setp(ax2.get_xticklabels() ,visible=False)
+
+fig.text(0.5, 0.04, 'Temperature (20 degree of interval)', ha='center', va='center', fontsize=14)#  0.5 ,0.04 represent the  plotting scale of x_axis and y_axis
+fig.text(0.06, 0.5, 'Depth(m)', ha='center', va='center', rotation='vertical',fontsize=14)
 plt.savefig('obs_ILD.png',dpi=200)
 plt.show()
