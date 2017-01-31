@@ -14,7 +14,7 @@ from turtleModule import  str2ndlist, np_datetime
 import utilities
 
 example=[117170,129775,118905,129779] # those turtle's id is random  
-T=[]  # get all information of six example turtle
+T=[]  # get all information of four example turtle
 for e in range(len(example)):
     obsData = pd.read_csv('ctdWithModTempByDepth.csv')
     obs_data=pd.read_csv('ctd_good_new.csv')
@@ -24,53 +24,61 @@ for e in range(len(example)):
     for i in tf_index:
         if obsturtle_id[i]==example[e]:   # we can get each turtle's ILD
             indx.append(i)
-    Data = obsData.ix[indx]
-    obs_data=obs_data.ix[indx]                    
-    obsTime = pd.Series(np_datetime(Data['END_DATE'].values), index=indx)
-    obsTemp = pd.Series(str2ndlist(Data['TEMP_VALS'].values), index=indx)
-    obsDepth = pd.Series(str2ndlist(Data['TEMP_DBAR'].values), index=indx)
-    modDepth = pd.Series(str2ndlist(obs_data['LayerDepth'], bracket=True), index=indx) # If str has '[' and ']', bracket should be True.
-    modTemp = pd.Series(str2ndlist(Data['modTempByDepth'].values,bracket=True), index=indx)
-            
+    Temp = pd.Series(str2ndlist(obsData['TEMP_VALS'][indx]), index=indx)
+    Indx=[]  # get rid of the profile without ten record points
+    for i in indx:
+        if len(Temp[i])==10:
+            Indx.append(i)
+    Data = obsData.ix[Indx]
+    obs_data=obs_data.ix[Indx]                    
+    obsTime = pd.Series(np_datetime(Data['END_DATE'].values), index=Indx)
+    obsTemp = pd.Series(str2ndlist(Data['TEMP_VALS'].values), index=Indx)
+    obsDepth = pd.Series(str2ndlist(Data['TEMP_DBAR'].values), index=Indx)
+    modDepth = pd.Series(str2ndlist(obs_data['LayerDepth'], bracket=True), index=Indx) # If str has '[' and ']', bracket should be True.
+    modTemp = pd.Series(str2ndlist(Data['modTempByDepth'].values,bracket=True), index=Indx)
+    
     obsILD=[] # get the ILD of the observation
-    for i in obsTime.index: 
+    for i in Indx: 
         try:   
             if obsTemp[i][0]==obsTemp[i][1]:
-                min_slope1=1000  # 1000 is a large of random that represents infinity
+                min_slope=1000  # 1000 is a large of random that represents infinity
             else:
-                min_slope1=(obsDepth[i][1]-obsDepth[i][0])/(obsTemp[i][0]-obsTemp[i][1])
-            for k in range(1,9):   # each profile have the 10 points record
-                if obsTemp[i][k]==obsTemp[i][k+1] or obsDepth[i][k+1]==obsDepth[i][k]:
-                    break
-                sl1=(obsDepth[i][k+1]-obsDepth[i][k])/(obsTemp[i][k]-obsTemp[i][k+1])
-                #print sl
-                if sl1<=min_slope1:
-                    min_slope1=sl1
-                else:
-                    break
-            ild1=(obsDepth[i][k-1]+obsDepth[i][k])/2 # ILD means isothermal layer depth
+                min_slope=abs((obsDepth[i][1]-obsDepth[i][0])/(obsTemp[i][0]-obsTemp[i][1]))
+            m=0
+            for k in range(1,9):
+                if obsTemp[i][k]==obsTemp[i][k+1]:  
+                   obsTemp[i][k+1]-=0.000000000001
+                sl=abs((obsDepth[i][k+1]-obsDepth[i][k])/(obsTemp[i][k]-obsTemp[i][k+1]))
+                if sl==0:
+                    sl=1000
+                if sl<=min_slope:
+                    min_slope=sl
+                    m=k
+            ild=(obsDepth[i][m+1]+obsDepth[i][m])/2
         except IndexError :
             continue
-        obsILD.append(ild1)
+        obsILD.append(ild)
     modILD=[]   #get the ILD of the mod
-    for i in obsTime.index:
+    for i in Indx:
         try:   
             if modTemp[i][0]==modTemp[i][1]:
-                min_slope2=1000  # 1000 is a large of random that represents infinity
+                min_slope=1000  # 1000 is a large of random that represents infinity
             else:
-                min_slope2=(modDepth[i][1]-modDepth[i][0])/(modTemp[i][0]-modTemp[i][1])
-            for k in range(1,9):   # each profile have the 10 points record
-                if modTemp[i][k]==modTemp[i][k+1] or modDepth[i][k+1]==modDepth[i][k]:
-                    break
-                sl2=(modDepth[i][k+1]-modDepth[i][k])/(modTemp[i][k]-modTemp[i][k+1])
-                if sl2<=min_slope2:
-                    min_slope2=sl2
-                else:
-                    break
-            ild2=(modDepth[i][k-1]+modDepth[i][k])/2 
+                min_slope=abs((modDepth[i][1]-modDepth[i][0])/(modTemp[i][0]-modTemp[i][1]))
+            m=0
+            for k in range(1,9):
+                if modTemp[i][k]==modTemp[i][k+1]:  
+                   modTemp[i][k+1]-=0.000000000001
+                sl=abs((modDepth[i][k+1]-modDepth[i][k])/(modTemp[i][k]-modTemp[i][k+1]))
+                if sl==0:
+                    sl=1000
+                if sl<=min_slope:
+                    min_slope=sl
+                    m=k
+            ild=(modDepth[i][m+1]+modDepth[i][m])/2
         except IndexError :
             continue
-        modILD.append(ild2)
+        modILD.append(ild)
        
     data = pd.DataFrame({'obsTime':obsTime.values, 'obsILD':obsILD, 
                         'modILD': modILD}, index=range(len(obsTime)))
@@ -96,7 +104,7 @@ for i in range(4):
     ilds2=ild2_smooth[difflen2/2:-difflen2/2]
     M.append(ilds1)
     O.append(ilds2)
-'''    
+'''   
 fig=plt.figure()
 for i in range(4):
     ax = fig.add_subplot(2,2,i+1,)
@@ -111,13 +119,13 @@ for i in range(4):
     ax.set_xticks(dates)
     ax.xaxis.set_major_formatter(dateFmt)
     ax.set_ylim([35,2]) 
-    plt.text(T[i][0]['obsTime'][1],31,'obsmean'+str(T[i][2]))
-    plt.text(T[i][0]['obsTime'][1],34,'modmean'+str(T[i][3]))
+    plt.text(T[i][0]['obsTime'][1],31,'obsmean: '+str(T[i][2]))
+    plt.text(T[i][0]['obsTime'][1],34,'modmean: '+str(T[i][3]))
     if i==1 or i==3: 
         plt.setp(ax.get_yticklabels() ,visible=False)
     if i==0 or i==1:
         plt.setp(ax.get_xticklabels() ,visible=False)
 fig.text(0.5, 0.04, '2013', ha='center', va='center', fontsize=14)#  0.5 ,0.04 represent the  plotting scale of x_axis and y_axis
-fig.text(0.06, 0.5, 'isothermal layer depth', ha='center', va='center', rotation='vertical',fontsize=14)
-plt.savefig('ILD_obsVSmod.png',dpi=200)
+fig.text(0.06, 0.5, 'Isothermal Layer Depth(m)', ha='center', va='center', rotation='vertical',fontsize=14)
+plt.savefig('ILD_obsVSmod_no_smooth.png',dpi=200)
 plt.show()
