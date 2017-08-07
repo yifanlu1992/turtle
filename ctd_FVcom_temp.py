@@ -1,10 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Created on Mon Feb  9 11:23:07 2015
-
-@author: zhaobin
+'get fvcom temperature from  website
 """
-'get temperature from fvcom`s website and create ctd_FVcom_temp.csv or ship_FVcom_temp.csv'
 import numpy as np
 import pandas as pd
 import netCDF4
@@ -31,5 +28,5 @@ for i in tf_index:
     print i
 obsData['modtempBYdepth']=pd.Series(TEMP,index=tf_index)
 obsData.to_csv('ctd_FVcom_temp.csv')         #ctd
-#obsData.to_csv('ship_FVcom_temp.csv')       #ship
+
     
