@@ -56,4 +56,4 @@ for i in indexNotNull:
     layersAll.append(layers)
 layersAll = pd.Series(layersAll, index=indexNotNull)
 obsData['modDepthLayer'] = layersAll
-#obsData.to_csv('ctd_good.csv')
+obsData.to_csv('ctd_good.csv')
