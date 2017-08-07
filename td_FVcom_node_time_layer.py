@@ -1,11 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Created on Fri Feb  6 14:57:08 2015
-
-@author: zhaobin
+Analysis data whether in FVCOM range or not ,calculate each dive`s nearest node,layer and time of model
 """
-'create a file named ctd_FVcom_node_time_layer.csv or ship_FVcom_node_time_layer.csv'
-import numpy as np
+
 import pandas as pd
 from datetime import datetime,timedelta
 import netCDF4
@@ -118,5 +115,5 @@ obsData['in FVcom range'] = ctd_FV
 obsData['modnode']=pd.Series(node,index=FV_index)
 obsData['modtime']=pd.Series(TIME,index=FV_index)
 obsData['modlayer']=pd.Series(Depth,index=FV_index)
-#obsData.to_csv('ctd_FVcom_node_time_layer.csv')        #CTD
-'''obsData.to_csv('ship_FVcom_node_time_layer.csv') '''       #ship
+obsData.to_csv('ctd_FVcom_node_time_layer.csv')        #CTD
+
