@@ -1,5 +1,6 @@
 '''
-Extract new data file named "ctd_good_new.csv "with new column "modNearestIndex" and "modDepthLayer"
+Extract new data file named "ctd_good_new.csv "with new column "modNearestIndex" and "modDepthLayer",just add the depth of the mod
+@author:yifan
 '''
 import pandas as pd
 import numpy as np
