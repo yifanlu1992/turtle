@@ -1,10 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Created on Fri Mar 13 13:57:00 2015
-
-@author: zhoabin
-"""
 'get temperature of HYCOM'
+"""
 import netCDF4
 import matplotlib.pyplot as plt
 import numpy as np
