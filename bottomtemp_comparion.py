@@ -132,7 +132,7 @@ tempObs_hycom = []
 tempMod_hycom = []
 for i in range(len(obsTemp.values)):
     if tempMod.values[i][-1]<-10:continue
-    if tempMod.values[i][-1]>0: 
+    if tempMod.values[i][-1]>0: # here will just delete one value(-2.6550007)
         tempObs_hycom.append(obsTemp.values[i][-1])
         tempMod_hycom.append(tempMod.values[i][-1])
     '''for j in range(len(obsDepth.values[i])):
